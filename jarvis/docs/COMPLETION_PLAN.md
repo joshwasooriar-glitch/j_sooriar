@@ -1,6 +1,27 @@
 # Completion plan
 
-Phase 0 output. Nothing here is implemented yet. Scope is the five deliverables
+> **Status, November 5, 2026: built.** All six items are implemented, and the
+> local real-service acceptance run passed (`ACCEPTANCE.md`). The hosted-project
+> run is still required before merging to `main`. Where the build follows the
+> later clarifications instead of this plan:
+>
+> - **Capture is fully deterministic** (token-set match, regex quantities). No
+>   model selects from the short list, and no model is called anywhere in capture.
+> - **Count goals log through capture,** with a confirmation showing the goal,
+>   quantity and resulting progress, instead of a form on the goal page.
+> - **Undo and reverse use one Postgres function,** `reverse_activity_event`:
+>   30 seconds on the database clock for the toast, no limit on the Activity
+>   Ledger page. The Activity Ledger page was built for this (it was unscheduled).
+> - **Focus writes one event on Stop,** measured with a monotonic clock and
+>   capped at 4 hours, instead of on Start.
+> - **`JARVIS_AI_ENABLED`** (default off) was added. The dashboard reads AI OFF.
+> - **A signup trigger now creates the profile row.** The acceptance run found
+>   that new users could not create goals without it.
+>
+> The open questions at the end were answered by those clarifications, or by the
+> recommended answer where they were silent (questions 4, 5 and 7).
+
+Phase 0 output. The plan below is kept as written. Scope is the five deliverables
 below, in order, plus the milestone tags that cover everything else. Every
 control and route is listed in `FEATURE_INVENTORY.md`.
 
@@ -187,7 +208,7 @@ and has no Undo.
    words present in the text, with per-word typo tolerance from a character
    bigram similarity. Keep up to 5 above a floor, ranked by score. No embeddings.
 3. **Zero candidates:** reply `no_match` with no model call. Offer "Add it as a
-   task?", linking to `/tasks/new?title=--¦`.
+   task?", linking to `/tasks/new?title=â€¦`.
 4. **Model selects from the short list only.** Luna sees the candidates as short
    references (`c1` to `c5`), never database ids, and returns JSON:
    `{ decision: "match" | "no_match" | "ambiguous", ref, question }`. Zod-parsed.

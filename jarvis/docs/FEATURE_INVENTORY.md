@@ -42,7 +42,7 @@ and a "not built yet" page. That work is Plan 6.
 | **AI budget** pill | Month-to-date spend vs $10, colored by budget state | Works. Reads `model_runs` for the current local month | Nothing | M1 · done |
 | **DEMO DATA** pill | Warns that numbers come from the fixture | Works. Shown only without Supabase config | Nothing | M1 · done |
 | **Clock** | Local date and time | Works | Nothing | M1 · done |
-| **Search** box, -��K hint | Command palette over goals, tasks, memory | A non-focusable `div`. Does nothing. -��K is not bound | Milestone tag. Command palette is not on the roadmap | Unscheduled |
+| **Search** box, ⌘K hint | Command palette over goals, tasks, memory | A non-focusable `div`. Does nothing. ⌘K is not bound | Milestone tag. Command palette is not on the roadmap | Unscheduled |
 | **Notifications** bell | Notification list | A `span`. Does nothing, not focusable | Milestone tag | Unscheduled |
 | **User** pill (name, school, avatar) | Account menu, including sign out | Display only. **No sign-out control exists anywhere in the app** | Sign-out server action and a menu | M1 · gap |
 
@@ -57,7 +57,7 @@ and a "not built yet" page. That work is Plan 6.
 | **Quick command: Start a focus block** | Same as the sidebar button | Dead button tagged "step 5" | Same focus action as the sidebar | M1 · Plan 5 |
 | **Quick command: Deep research** | Enqueue a research job | Dead button tagged "~20¢ · M3" | Durable jobs (out of scope) | M3 |
 | **Quick command: Evening review** | Run the review now | Dead button tagged "M2" | Review prompt plus cron (out of scope) | M2 |
-| **Active goals: "All N --�"** link | Goals list | Links to `/goals`, which 404s | `/goals` page | M1 · Plan 1 |
+| **Active goals: "All N ›"** link | Goals list | Links to `/goals`, which 404s | `/goals` page | M1 · Plan 1 |
 | **Active goals: goal cards** | Open the goal's detail page | Not clickable | Link each card to `/goals/[id]` | M1 · Plan 1 |
 | **Active goals: + New goal** | New goal form | Links to `/goals/new`, which 404s | `/goals/new` page | M1 · Plan 1 |
 | **Priority: task rows** | Open or complete the task | Display only. Ranking and chips are correct | Link to `/tasks/[id]` | M1 · Plan 1 |
