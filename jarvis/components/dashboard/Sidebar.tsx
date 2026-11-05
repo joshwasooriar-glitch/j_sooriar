@@ -1,5 +1,6 @@
 import { Icon, type IconName } from "@/components/ui/icons";
 import { Ring } from "@/components/ui/Ring";
+import { FocusButton } from "./FocusButton";
 import { compactNumber } from "@/lib/dashboard/format";
 import type { DashboardView } from "@/lib/dashboard/view-model";
 
@@ -104,9 +105,7 @@ export function Sidebar({ view }: { view: DashboardView }) {
         </div>
       </section>
 
-      <button type="button" className="btn-primary" disabled title="Focus blocks are wired with /api/capture">
-        Start focus block
-      </button>
+      <FocusButton variant="primary" />
     </aside>
   );
 }

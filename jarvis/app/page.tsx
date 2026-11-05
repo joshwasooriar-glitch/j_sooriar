@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { FocusButton } from "@/components/dashboard/FocusButton";
 import { Footer } from "@/components/dashboard/Footer";
 import {
   ActiveGoals,
@@ -49,7 +50,7 @@ export default async function CommandCenter() {
         <main className="grid">
           <SystemOverview view={view} />
           <GoalOrbit view={view} />
-          <QuickCommands />
+          <QuickCommands focusSlot={<FocusButton variant="cmd" />} />
           <ActiveGoals view={view} />
           <Priority view={view} />
           <Signals view={view} />

@@ -459,7 +459,7 @@ a.goal-card:hover { border-color: var(--line-2); background: var(--panel-2); }
   .brand { border-bottom: 0; padding: 0; }
   .nav { flex-direction: row; flex-wrap: wrap; order: 3; width: 100%; }
   .nav a { padding: 6px 10px; }
-  .score-card, .sidebar > .btn-primary { display: none; }
+  .score-card, .sidebar > .focus-wrap { display: none; }
   .search { display: none; }
 }
 
@@ -561,3 +561,7 @@ textarea.field, select.field { font: inherit; color: var(--ink); }
 .notice.bad { color: var(--bad); border-color: rgba(248, 113, 113, 0.4); }
 .confirm { display: inline-flex; gap: 6px; align-items: center; }
 .btn-add.danger { color: var(--bad); border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.08); }
+
+.focus-wrap { display: flex; flex-direction: column; gap: 6px; }
+.btn-primary.running, .cmd.running { border-color: rgba(52, 211, 153, 0.55); color: var(--good); background: rgba(52, 211, 153, 0.1); font-variant-numeric: tabular-nums; }
+.focus-result { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); padding: 6px 2px; }
