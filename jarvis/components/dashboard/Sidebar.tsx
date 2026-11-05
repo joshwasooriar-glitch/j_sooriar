@@ -61,14 +61,42 @@ export function Sidebar({ view }: { view: DashboardView }) {
         <h2 className="panel-title">Today&apos;s score</h2>
         <div className="score-row">
           <div style={{ width: 84, flex: "none" }}>
-            <Ring value={view.score.today / 100} label={`Score ${view.score.today} of 100`} size={84} stroke={8} />
+            <Ring
+              value={view.score.today == null ? null : view.score.today / 100}
+              label={view.score.today == null ? "Score unavailable" : `Score ${view.score.today} of 100`}
+              size={84}
+              stroke={8}
+            />
           </div>
           <div>
-            <div className="score-big num">{view.score.today}</div>
+            {view.score.today == null ? (
+              <div className="score-na">Score unavailable</div>
+            ) : (
+              <div className="score-big num">{view.score.today}</div>
+            )}
             <div className="score-sub">
               Level {view.score.level} · {compactNumber(view.score.totalXp)} XP
             </div>
           </div>
+        </div>
+        <div
+          className="coverage"
+          title={
+            view.score.coverage.components.length
+              ? `Measured: ${view.score.coverage.components.join(", ").replace(/_/g, " ")}`
+              : "Nothing measurable yet today"
+          }
+        >
+          <span>Coverage</span>
+          <span className="mono">
+            {view.score.coverage.measured} of {view.score.coverage.of} components
+          </span>
+        </div>
+        <div className="coverage">
+          <span>Evening review</span>
+          <span className={view.score.reviewDone ? "tone-good" : "mono"}>
+            {view.score.reviewDone ? "● done" : "not logged"}
+          </span>
         </div>
         <div className="streak">
           <Icon name="flame" size={16} style={{ color: "var(--warn)" }} />

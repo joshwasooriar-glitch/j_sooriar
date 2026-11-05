@@ -58,7 +58,6 @@ async function main() {
         habits: 0.15,
         schedule_adherence: 0.1,
         focus_blocks: 0.1,
-        review_checkin: 0.05,
       },
     },
   });

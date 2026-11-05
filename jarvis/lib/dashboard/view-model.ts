@@ -17,7 +17,8 @@ import {
   computeGoalProgress,
   currentValueFromEvents,
 } from "@/lib/engine/progress";
-import { computeDailyScore, computeStreak, levelFromXp } from "@/lib/engine/score";
+import { computeStreak, levelFromXp } from "@/lib/engine/score";
+import { dailyScoreFor } from "./daily-score";
 import { clamp, daysBetween, lastNLocalDays, localDateString } from "@/lib/engine/time";
 import type { Goal, GoalProgress, PaceStatus } from "@/lib/engine/types";
 import type { DashboardSnapshot, SnapshotEvent } from "./snapshot";
@@ -113,7 +114,10 @@ export interface DashboardView {
     jobs: number;
   };
   score: {
-    today: number;
+    /** Null means "Score unavailable": fewer than two components were measurable. */
+    today: number | null;
+    coverage: { measured: number; of: number; components: string[] };
+    reviewDone: boolean;
     level: number;
     totalXp: number;
     streak: number;
@@ -203,7 +207,6 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
 
   // ---------------- events by local day ----------------
   const eventDay = (e: SnapshotEvent) => localDateString(new Date(e.occurred_at), tz);
-  const eventsToday = snap.events.filter((e) => eventDay(e) === today);
 
   const last14 = lastNLocalDays(now, tz, 14);
   const last14Set = new Set(last14);
@@ -225,10 +228,6 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
   }
 
   // ---------------- tasks ----------------
-  const completedTodayIds = new Set(
-    eventsToday.filter((e) => e.event_type === "task_completed" && e.task_id).map((e) => e.task_id),
-  );
-  const tasksCompletedToday = snap.tasks.filter((t) => completedTodayIds.has(t.id));
   const dueTodayTasks = snap.tasks.filter(
     (t) => t.status !== "cancelled" && t.due_at && localDateString(new Date(t.due_at), tz) === today,
   );
@@ -236,17 +235,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
 
   // ---------------- score ----------------
   const activeHabits = snap.habits.filter((h) => h.active);
-  const daily = computeDailyScore({
-    tasksDueToday: dueTodayTasks,
-    tasksCompletedToday,
-    eventsToday,
-    activeHabits,
-    // Calendar sync is Milestone 2. With nothing scheduled the component drops
-    // out and its weight is redistributed, rather than scoring zero.
-    scheduledCount: 0,
-    attendedCount: 0,
-    reviewDone: eventsToday.some((e) => e.event_type === "review_completed"),
-  });
+  const daily = dailyScoreFor(snap, snap.events, now, tz);
   const totalXp = snap.events.reduce((s, e) => s + (Number(e.xp) || 0), 0);
   const level = levelFromXp(totalXp);
 
@@ -332,6 +321,8 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
     },
     score: {
       today: daily.score,
+      coverage: daily.coverage,
+      reviewDone: daily.consistency.reviewDone,
       level: level.level,
       totalXp,
       streak: computeStreak(snap.events, now, tz),

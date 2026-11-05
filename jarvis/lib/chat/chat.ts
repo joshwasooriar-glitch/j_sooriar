@@ -214,6 +214,7 @@ async function callModel(req: ChatRequest, intent: Intent, tier: ModelTier, deps
     calendar: [],
     streak: s.streak,
     todayScore: s.todayScore,
+    scoreCoverage: s.scoreCoverage,
     spentCents: deps.ledger.spentCents,
     budgetCents: budgetConfig().monthlyCents,
   });

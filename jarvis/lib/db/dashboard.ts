@@ -24,6 +24,7 @@ const Profile = z.object({
       location: z.string().optional(),
       school: z.string().optional(),
       graduation_date: z.string().optional(),
+      score_weights: z.unknown().optional(),
     })
     .passthrough()
     .catch({}),

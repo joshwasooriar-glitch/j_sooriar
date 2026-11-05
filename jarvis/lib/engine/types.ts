@@ -96,19 +96,33 @@ export interface GoalProgress {
   isOverdue: boolean;
 }
 
-export interface ScoreWeights {
-  priority_tasks: number;
-  goal_progress: number;
-  habits: number;
-  schedule_adherence: number;
-  focus_blocks: number;
-  review_checkin: number;
-}
+/**
+ * The five performance components of the daily score. Review check-in is not
+ * one of them: it is a consistency indicator, reported separately.
+ */
+export type PerformanceComponent =
+  | "priority_tasks"
+  | "goal_progress"
+  | "habits"
+  | "schedule_adherence"
+  | "focus_blocks";
+
+export type ScoreWeights = Record<PerformanceComponent, number>;
 
 export interface ScoreBreakdown {
-  score: number;
+  /** 0 to 100, or null when fewer than MIN_MEASURED_COMPONENTS were measurable. */
+  score: number | null;
   xp: number;
-  components: Record<keyof ScoreWeights, { raw: number; weighted: number }>;
+  /** How many performance components had something to measure today. */
+  coverage: { measured: number; of: number; components: PerformanceComponent[] };
+  /**
+   * raw is 0 to 1, or null when there was nothing to measure. Null and zero
+   * are different facts: null is "nothing scheduled", zero is "scheduled and
+   * missed". weighted is null whenever the score itself is null.
+   */
+  components: Record<PerformanceComponent, { raw: number | null; weighted: number | null }>;
+  /** Not part of the score. */
+  consistency: { reviewDone: boolean };
 }
 
 export interface RankedTask {

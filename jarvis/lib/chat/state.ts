@@ -7,8 +7,8 @@
 
 import { topTasksForToday } from "@/lib/engine/next-action";
 import { computeGoalProgress, currentValueFromEvents, furthestBehind } from "@/lib/engine/progress";
-import { computeDailyScore, computeStreak } from "@/lib/engine/score";
-import { localDateString } from "@/lib/engine/time";
+import { computeStreak } from "@/lib/engine/score";
+import { dailyScoreFor } from "@/lib/dashboard/daily-score";
 import type { Goal, GoalProgress, RankedTask, Task } from "@/lib/engine/types";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
 
@@ -22,14 +22,15 @@ export interface EngineState {
   topTasks: RankedTask[];
   overdueCount: number;
   streak: number;
-  todayScore: number;
+  /** Null when the day has too few measurable components for a score. */
+  todayScore: number | null;
+  scoreCoverage: { measured: number; of: number };
   spentCents: number;
   recentEvents: { occurred_at: string; event_type: string; label: string }[];
 }
 
 export function engineState(snap: DashboardSnapshot, now: Date): EngineState {
   const tz = snap.profile.timezone || "America/New_York";
-  const today = localDateString(now, tz);
 
   const activeGoals = snap.goals
     .filter((g) => g.status === "active")
@@ -43,21 +44,7 @@ export function engineState(snap: DashboardSnapshot, now: Date): EngineState {
   const openTasks = snap.tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
   const overdueCount = openTasks.filter((t) => t.due_at && new Date(t.due_at).getTime() < now.getTime()).length;
 
-  const eventsToday = snap.events.filter((e) => localDateString(new Date(e.occurred_at), tz) === today);
-  const completedToday = new Set(
-    eventsToday.filter((e) => e.event_type === "task_completed" && e.task_id).map((e) => e.task_id),
-  );
-  const score = computeDailyScore({
-    tasksDueToday: snap.tasks.filter(
-      (t) => t.status !== "cancelled" && t.due_at && localDateString(new Date(t.due_at), tz) === today,
-    ),
-    tasksCompletedToday: snap.tasks.filter((t) => completedToday.has(t.id)),
-    eventsToday,
-    activeHabits: snap.habits.filter((h) => h.active),
-    scheduledCount: 0,
-    attendedCount: 0,
-    reviewDone: eventsToday.some((e) => e.event_type === "review_completed"),
-  });
+  const score = dailyScoreFor(snap, snap.events, now, tz);
 
   const goalTitle = new Map(activeGoals.map((g) => [g.id, g.title]));
   const recentEvents = [...snap.events]
@@ -81,6 +68,7 @@ export function engineState(snap: DashboardSnapshot, now: Date): EngineState {
     overdueCount,
     streak: computeStreak(snap.events, now, tz),
     todayScore: score.score,
+    scoreCoverage: { measured: score.coverage.measured, of: score.coverage.of },
     spentCents: snap.modelRunsThisMonth.reduce((s, r) => s + (Number(r.cost_cents) || 0), 0),
     recentEvents,
   };

@@ -17,6 +17,8 @@ export interface SnapshotProfile {
     school?: string;
     /** YYYY-MM-DD */
     graduation_date?: string;
+    /** Per-component score weights. Validated by resolveWeights. */
+    score_weights?: unknown;
   };
 }
 
