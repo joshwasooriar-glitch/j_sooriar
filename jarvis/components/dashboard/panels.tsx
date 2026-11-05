@@ -68,7 +68,7 @@ export function SystemOverview({ view }: { view: DashboardView }) {
  * where elapsed time says the goal should be. The gap between them is paceDelta.
  */
 export function GoalOrbit({ view }: { view: DashboardView }) {
-  const goals = view.goals.slice(0, 5);
+  const goals = (view.goals ?? []).slice(0, 5);
   const size = 300;
   const c = size / 2;
   const stroke = 10;
@@ -158,12 +158,12 @@ export function GoalOrbit({ view }: { view: DashboardView }) {
 // ============================================================ active goals
 
 export function ActiveGoals({ view }: { view: DashboardView }) {
-  const shown = view.goals.slice(0, 5);
+  const shown = (view.goals ?? []).slice(0, 5);
   return (
     <section className="panel span-5" aria-labelledby="goals-h">
       <div className="panel-head">
         <h2 id="goals-h" className="panel-title">Active goals</h2>
-        <Link className="panel-note" href="/goals" style={{ color: "var(--accent)" }}>All {view.goals.length} ›</Link>
+        <Link className="panel-note" href="/goals" style={{ color: "var(--accent)" }}>All {view.goals?.length ?? 0} ›</Link>
       </div>
       <div className="goal-grid">
         {shown.map((g) => (
@@ -201,6 +201,9 @@ export function ActiveGoals({ view }: { view: DashboardView }) {
  * goal slipping with nothing queued shows up as its own row.
  */
 export function Priority({ view }: { view: DashboardView }) {
+  // A missing list (stale build, unexpected shape) renders as empty, not as a crash.
+  const priority = view.priority ?? [];
+  const dueToday = view.dueToday ?? [];
   return (
     <section className="panel span-7" aria-labelledby="prio-h">
       <div className="panel-head">
@@ -212,11 +215,11 @@ export function Priority({ view }: { view: DashboardView }) {
       </div>
 
       <div className="prio-wrap">
-        {view.priority.length === 0 ? (
+        {priority.length === 0 ? (
           <p className="empty">Nothing open and nothing slipping. Add a task, or enjoy the quiet.</p>
         ) : (
           <ol className="prio">
-            {view.priority.map((r, i) => (
+            {priority.map((r, i) => (
               <li
                 key={r.key}
                 className={r.kind === "no_next_action" ? "orphan" : r.overdueP1 ? "overdue" : undefined}
@@ -248,11 +251,11 @@ export function Priority({ view }: { view: DashboardView }) {
             <span>DUE TODAY</span>
             <span>calendar sync · M2</span>
           </div>
-          {view.dueToday.length === 0 ? (
+          {dueToday.length === 0 ? (
             <p className="empty">Nothing else due today.</p>
           ) : (
             <ul className="sched">
-              {view.dueToday.map((d) => (
+              {dueToday.map((d) => (
                 <li key={d.id} className={d.state}>
                   <span className="t">{d.time}</span>
                   <span className="pip" aria-hidden="true" />
@@ -375,7 +378,7 @@ export function Signals({ view }: { view: DashboardView }) {
 // ============================================================ ledger
 
 export function LedgerPanel({ view }: { view: DashboardView }) {
-  const days = view.ledger.days;
+  const days = view.ledger?.days ?? [];
   const W = 320;
   const H = 110;
   const pad = 10;
@@ -457,7 +460,7 @@ export function ModelRouting({ view }: { view: DashboardView }) {
         )}
       </div>
       <div className="routes">
-        {view.routing.rows.map((r) => (
+        {(view.routing?.rows ?? []).map((r) => (
           <div key={r.tier} className={`route ${r.tier}`} title={r.modelId}>
             <span className="pip" style={{ background: TIER_PIP[r.tier] }} />
             <div>

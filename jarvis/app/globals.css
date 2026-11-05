@@ -569,3 +569,5 @@ textarea.field, select.field { font: inherit; color: var(--ink); }
 .tag-pill { display: inline-block; margin-top: 14px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(250, 204, 21, 0.45); color: var(--warn); }
 .search.inert, .icon-btn.inert { opacity: 0.55; cursor: default; }
 .btn-ghost .tag { font-family: var(--mono); font-size: 10px; border: 1px solid var(--line-2); border-radius: 4px; padding: 0 5px; color: var(--ink-3); }
+
+.panel-failed { border-style: dashed; }

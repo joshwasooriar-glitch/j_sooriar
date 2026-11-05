@@ -179,3 +179,20 @@ than a crash because it fails quietly.
 Boundary cases are tested explicitly: zero elapsed time, target date in the
 past, target value of zero, null target date, negative quantities, goals created
 today, and the DST transition.
+
+## Troubleshooting
+
+- **Switched git branches while `npm run dev` was running, and now pages crash
+  or half-render** (errors about properties that no longer exist, components
+  from the other branch): the dev server's `.next` cache still holds the other
+  branch's compiled code. Stop the server, run `rm -rf .next`, and start it
+  again. Do this after any branch switch that changes `app/`, `components/` or
+  `lib/`.
+- **A dashboard panel shows "This panel could not load"**: that panel threw
+  while rendering and was contained so the rest of the page still works. The
+  browser console has the error. After a branch switch, the fix above clears it.
+- **`npm run seed` says Missing env**: the seed scripts read `.env.local`. Put
+  `SUPABASE_SERVICE_ROLE_KEY` and `SEED_USER_ID` there.
+- **The hosted project stopped responding after a quiet week**: Supabase pauses
+  free-tier projects after 7 days of inactivity. Restore it from the Supabase
+  dashboard.

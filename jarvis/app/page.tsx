@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { FocusButton } from "@/components/dashboard/FocusButton";
 import { Footer } from "@/components/dashboard/Footer";
+import { PanelBoundary } from "@/components/dashboard/PanelBoundary";
 import {
   ActiveGoals,
   GoalOrbit,
@@ -48,14 +49,30 @@ export default async function CommandCenter() {
       <div className="main">
         <TopBar view={view} />
         <main className="grid">
-          <SystemOverview view={view} />
-          <GoalOrbit view={view} />
-          <QuickCommands focusSlot={<FocusButton variant="cmd" />} />
-          <ActiveGoals view={view} />
-          <Priority view={view} />
-          <Signals view={view} />
-          <LedgerPanel view={view} />
-          <ModelRouting view={view} />
+          <PanelBoundary name="System overview" span="span-3">
+            <SystemOverview view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Goal orbit" span="span-6 orbit-panel">
+            <GoalOrbit view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Quick commands" span="span-3">
+            <QuickCommands focusSlot={<FocusButton variant="cmd" />} />
+          </PanelBoundary>
+          <PanelBoundary name="Active goals" span="span-5">
+            <ActiveGoals view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Priority" span="span-7">
+            <Priority view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Signals" span="span-4">
+            <Signals view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Ledger" span="span-4">
+            <LedgerPanel view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Model routing" span="span-4">
+            <ModelRouting view={view} />
+          </PanelBoundary>
         </main>
         <Footer view={view} />
       </div>
