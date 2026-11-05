@@ -129,6 +129,18 @@ code looks correct. Report what you ran and what it printed.
   Day boundaries for scores and streaks use the user's local day, not UTC.
 - **Money:** all costs in integer-ish `cents` as `numeric`, never floats named
   `dollars`.
+- **Batch inserts: every row carries every key.** supabase-js builds one column
+  list from the union of keys in a batch and sends explicit `null` for any key a
+  row lacks. That `null` overrides the column `DEFAULT`, so a `NOT NULL` column
+  with a default fails the moment one row sets it and another does not
+  (`milestones.status`, `tasks.status` and `tasks.scale` all hit this in the
+  seed). Put defaults first, before the spread:
+  `rows.map((t) => ({ status: "todo", scale: "micro", ...t }))`, or use
+  `withDefaults` from `scripts/lib/batch.ts`, which also throws if any row is
+  still missing a key. Passing `{ defaultToNull: false }` to `.insert()` makes
+  PostgREST use column defaults instead and is an acceptable alternative.
+  Single-row inserts are not affected. This applies to any future optional
+  column on any table.
 
 ---
 
