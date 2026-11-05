@@ -4,9 +4,12 @@ import {
   estimateCostCents,
   gate,
   jobNeedsApproval,
+  ModelCallError,
   projectMonthly,
+  withCostTracking,
   type BudgetConfig,
 } from "../lib/ai/cost";
+import { BudgetLedger } from "../lib/ai/llm";
 import { assertRuntimeSafe, MODELS } from "../lib/ai/models";
 
 const CFG: BudgetConfig = {
@@ -186,5 +189,85 @@ describe("runtime model safety", () => {
   it("allows the configured runtime models", () => {
     expect(() => assertRuntimeSafe(MODELS.default.id)).not.toThrow();
     expect(() => assertRuntimeSafe(MODELS.advanced.id)).not.toThrow();
+  });
+});
+
+describe("withCostTracking", () => {
+  const usage = { inputTokens: 3000, cachedInputTokens: 2000, outputTokens: 400 };
+
+  function recorder() {
+    const rows: import("../lib/ai/cost").ModelRunRecord[] = [];
+    return { rows, record: async (r: (typeof rows)[number]) => void rows.push(r) };
+  }
+
+  it("writes one row with the real cost on success", async () => {
+    const { rows, record } = recorder();
+    let t = 1000;
+    const value = await withCostTracking(
+      { tier: "default", feature: "chat", record, clock: () => (t += 250) },
+      async () => ({ value: "hi", usage }),
+    );
+    expect(value).toBe("hi");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      model: MODELS.default.id,
+      feature: "chat",
+      ok: true,
+      input_tokens: 3000,
+      cached_input_tokens: 2000,
+      output_tokens: 400,
+      latency_ms: 250,
+    });
+    expect(rows[0].cost_cents).toBeCloseTo(estimateCostCents("default", usage));
+  });
+
+  it("writes an ok=false row on failure, with any partial usage, and rethrows", async () => {
+    const { rows, record } = recorder();
+    await expect(
+      withCostTracking({ tier: "default", feature: "chat", record }, async () => {
+        throw new ModelCallError("timeout", { inputTokens: 1000, cachedInputTokens: 0, outputTokens: 0 });
+      }),
+    ).rejects.toThrow("timeout");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ok).toBe(false);
+    expect(rows[0].cost_cents).toBeCloseTo(estimateCostCents("default", { inputTokens: 1000, cachedInputTokens: 0, outputTokens: 0 }));
+  });
+
+  it("records zero usage when a plain error carries none", async () => {
+    const { rows, record } = recorder();
+    await expect(
+      withCostTracking({ tier: "advanced", feature: "chat", record }, async () => {
+        throw new Error("network");
+      }),
+    ).rejects.toThrow("network");
+    expect(rows[0]).toMatchObject({ ok: false, input_tokens: 0, cost_cents: 0, model: MODELS.advanced.id });
+  });
+
+  it("fails the call when the row cannot be written", async () => {
+    await expect(
+      withCostTracking(
+        { tier: "default", feature: "chat", record: async () => { throw new Error("db down"); } },
+        async () => ({ value: "hi", usage }),
+      ),
+    ).rejects.toThrow("db down");
+  });
+
+  it("never records more cached tokens than input tokens", async () => {
+    const { rows, record } = recorder();
+    await withCostTracking({ tier: "default", feature: "chat", record }, async () => ({
+      value: 1,
+      usage: { inputTokens: 100, cachedInputTokens: 500, outputTokens: 0 },
+    }));
+    expect(rows[0].cached_input_tokens).toBe(100);
+  });
+});
+
+describe("BudgetLedger", () => {
+  it("gates on the running total, not the starting figure", () => {
+    const ledger = new BudgetLedger(940, CFG);
+    expect(ledger.check("default").allowed).toBe(true);
+    ledger.add(70);
+    expect(ledger.spentCents).toBe(1010);
+    expect(ledger.check("default").allowed).toBe(false);
   });
 });

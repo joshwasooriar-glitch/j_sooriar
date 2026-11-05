@@ -6,7 +6,7 @@
  * how a $10 budget quietly becomes a $60 budget.
  */
 
-import { specFor, specForId, type ModelTier } from "./models";
+import { assertRuntimeSafe, specFor, specForId, type ModelSpec, type ModelTier } from "./models";
 
 export type BudgetState = "ok" | "warn" | "restrict" | "luna_only" | "hard_stop";
 
@@ -156,4 +156,94 @@ export function fmt(cents: number): string {
 export function projectMonthly(spentCents: number, dayOfMonth: number, daysInMonth: number): number {
   if (dayOfMonth <= 0) return spentCents;
   return (spentCents / dayOfMonth) * daysInMonth;
+}
+
+// ============================================================
+// withCostTracking
+// ============================================================
+
+/** One model_runs row, minus user_id, which the recorder supplies. */
+export interface ModelRunRecord {
+  model: string;
+  feature: string;
+  job_id: string | null;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  cost_cents: number;
+  latency_ms: number;
+  ok: boolean;
+}
+
+/** Persists a model_runs row. Injected so this file stays free of I/O. */
+export type RunRecorder = (row: ModelRunRecord) => Promise<void>;
+
+export interface TrackingOptions {
+  tier: ModelTier;
+  /** What the call was for: chat, classify, capture, brief. Drives the per-feature breakdown. */
+  feature: string;
+  record: RunRecorder;
+  jobId?: string | null;
+  /** Injected for tests. Defaults to Date.now. */
+  clock?: () => number;
+}
+
+/**
+ * The only way to call a model.
+ *
+ * Writes exactly one model_runs row per call, on success and on failure. A
+ * failed call is recorded with ok = false and whatever usage the error
+ * reported (zero if none), then the original error is rethrown. If the row
+ * cannot be written the call is treated as failed: an unrecorded cost is a
+ * hole in the budget guard, so it never passes silently.
+ *
+ * The caller does no retries inside `call`. Each attempt must be its own call
+ * through here so each attempt gets its own row.
+ */
+export async function withCostTracking<T>(
+  opts: TrackingOptions,
+  call: (spec: ModelSpec) => Promise<{ value: T; usage: Usage }>,
+): Promise<T> {
+  const spec = specFor(opts.tier);
+  assertRuntimeSafe(spec.id);
+  const clock = opts.clock ?? Date.now;
+  const started = clock();
+
+  const row = (usage: Usage, ok: boolean): ModelRunRecord => ({
+    model: spec.id,
+    feature: opts.feature,
+    job_id: opts.jobId ?? null,
+    input_tokens: usage.inputTokens,
+    cached_input_tokens: Math.min(usage.cachedInputTokens, usage.inputTokens),
+    output_tokens: usage.outputTokens,
+    cost_cents: estimateCostCents(opts.tier, usage),
+    latency_ms: Math.max(0, Math.round(clock() - started)),
+    ok,
+  });
+
+  let result: { value: T; usage: Usage };
+  try {
+    result = await call(spec);
+  } catch (err) {
+    await opts.record(row(usageFromError(err), false));
+    throw err;
+  }
+
+  await opts.record(row(result.usage, true));
+  return result.value;
+}
+
+/** Errors may carry partial usage; a timeout after tokens were billed still cost money. */
+export class ModelCallError extends Error {
+  constructor(
+    message: string,
+    readonly usage: Usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+  ) {
+    super(message);
+    this.name = "ModelCallError";
+  }
+}
+
+function usageFromError(err: unknown): Usage {
+  return err instanceof ModelCallError ? err.usage : { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
 }

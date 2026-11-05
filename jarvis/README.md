@@ -44,12 +44,13 @@ Milestone 1 in progress. See `ROADMAP.md`.
 | Piece | State |
 |---|---|
 | Schema, RLS, triggers, reconcile | Written |
-| Progress engine + tests | **146 tests passing** |
+| Progress engine + tests | **192 tests passing** |
 | Cost accounting and budget guards | Written and tested |
 | Intent router and context builder | Written and tested |
 | Next.js app shell, magic link auth | Written |
 | Command center dashboard | Written, reads the engine |
-| Chat, capture, goals and tasks pages | Not started |
+| `/api/chat`, `/api/capture`, Ask bar | Written, every call tracked |
+| Goals and tasks pages | Not started |
 
 ---
 

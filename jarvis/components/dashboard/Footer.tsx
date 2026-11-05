@@ -1,4 +1,5 @@
 import { Icon } from "@/components/ui/icons";
+import { AskBar } from "./AskBar";
 import type { DashboardView } from "@/lib/dashboard/view-model";
 
 export function Footer({ view }: { view: DashboardView }) {
@@ -35,19 +36,7 @@ export function Footer({ view }: { view: DashboardView }) {
         )}
       </div>
 
-      {/* Chat lands at build step 5. The form already points at the right place. */}
-      <form className="ask" action="/chat" method="get" role="search">
-        <Icon name="chat" />
-        <input
-          name="q"
-          aria-label="Ask JARVIS"
-          placeholder="How are we doing in terms of progress towards the goals?"
-          autoComplete="off"
-        />
-        <span className="mic" title="Voice is Milestone 5, Dec 7" aria-label="Voice input, not available until Milestone 5">
-          <Icon name="mic" size={16} />
-        </span>
-      </form>
+      <AskBar />
 
       <button type="button" className="btn-ghost" aria-disabled="true" title="Morning brief is Milestone 2">
         <Icon name="doc" size={16} />
