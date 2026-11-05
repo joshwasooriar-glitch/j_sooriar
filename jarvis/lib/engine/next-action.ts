@@ -147,3 +147,52 @@ export function topTasksForToday(
 function clampInt(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, Math.round(v)));
 }
+
+/**
+ * One row in the dashboard's PRIORITY list. Either a real task, or a synthetic
+ * row for a goal that is falling behind with nothing queued to move it.
+ */
+export type PriorityAction =
+  | { kind: "task"; ranked: RankedTask; overdueP1: boolean }
+  | { kind: "no_next_action"; goal: GoalProgress };
+
+/**
+ * The PRIORITY list, in three bands:
+ *
+ *   1. Overdue P1 tasks, by scoreTask.
+ *   2. Goals behind or at risk with no open task, worst paceDelta first. A
+ *      goal that is slipping with nothing queued is invisible to scoreTask,
+ *      which is exactly why it needs its own row.
+ *   3. Every other open task, by scoreTask.
+ *
+ * "Open" means not done and not cancelled, the same filter rankTasks applies,
+ * so a goal whose only task is blocked still counts as having one.
+ */
+export function prioritizeActions(
+  tasks: Task[],
+  goals: GoalProgress[],
+  now: Date,
+  n = 6,
+  opts: RankOptions = {},
+): PriorityAction[] {
+  const ranked = rankTasks(tasks, now, opts);
+
+  const isOverdueP1 = (r: RankedTask) =>
+    r.task.priority === 1 && r.task.due_at != null && new Date(r.task.due_at).getTime() < now.getTime();
+
+  const goalsWithOpenTask = new Set(ranked.map((r) => r.task.goal_id).filter((id): id is string => id != null));
+
+  const orphaned = goals
+    .filter(
+      (g) => (g.paceStatus === "behind" || g.paceStatus === "at_risk") && !goalsWithOpenTask.has(g.goal_id),
+    )
+    .sort((a, b) => (a.paceDelta ?? 0) - (b.paceDelta ?? 0) || a.title.localeCompare(b.title));
+
+  const out: PriorityAction[] = [
+    ...ranked.filter(isOverdueP1).map((r) => ({ kind: "task" as const, ranked: r, overdueP1: true })),
+    ...orphaned.map((g) => ({ kind: "no_next_action" as const, goal: g })),
+    ...ranked.filter((r) => !isOverdueP1(r)).map((r) => ({ kind: "task" as const, ranked: r, overdueP1: false })),
+  ];
+
+  return out.slice(0, n);
+}

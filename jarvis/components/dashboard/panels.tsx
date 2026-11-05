@@ -153,32 +153,6 @@ export function GoalOrbit({ view }: { view: DashboardView }) {
   );
 }
 
-// ============================================================ attention
-
-const SEV_GLYPH = { critical: "▲", warning: "▲", due: "●", auto: "●", budget: "●" } as const;
-
-export function Attention({ view }: { view: DashboardView }) {
-  return (
-    <section className="panel span-3" aria-labelledby="attn-h">
-      <div className="panel-head">
-        <h2 id="attn-h" className="panel-title">What needs attention</h2>
-        {view.criticalCount > 0 && <span className="panel-note bad">● {view.criticalCount} critical</span>}
-      </div>
-      <div className="attn-list">
-        {view.attention.map((a) => (
-          <div key={a.key} className={`attn ${a.severity}`}>
-            <span className="glyph" aria-hidden="true">{SEV_GLYPH[a.severity]}</span>
-            <div>
-              <div className="attn-title">{a.title}</div>
-              <div className="attn-detail">{a.detail}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 // ============================================================ active goals
 
 export function ActiveGoals({ view }: { view: DashboardView }) {
@@ -217,51 +191,87 @@ export function ActiveGoals({ view }: { view: DashboardView }) {
   );
 }
 
-// ============================================================ today ranked
+// ============================================================ priority
 
-export function TodayRanked({ view }: { view: DashboardView }) {
+/**
+ * One ranked list of actions, from prioritizeActions. Replaces the old
+ * attention list and top three: an alert you cannot act on is noise, and a
+ * goal slipping with nothing queued shows up as its own row.
+ */
+export function Priority({ view }: { view: DashboardView }) {
   return (
-    <section className="panel span-4" aria-labelledby="rank-h">
+    <section className="panel span-7" aria-labelledby="prio-h">
       <div className="panel-head">
-        <h2 id="rank-h" className="panel-title">Today · ranked</h2>
-        <span className="panel-note">engine, not a model</span>
+        <h2 id="prio-h" className="panel-title">Priority</h2>
+        <span className="panel-note">
+          {view.overdueP1Count > 0 && <span className="tone-bad">▲ {view.overdueP1Count} overdue P1 · </span>}
+          engine, not a model
+        </span>
       </div>
-      {view.ranked.length === 0 ? (
-        <p className="empty">No open tasks. Add one, or enjoy the quiet.</p>
-      ) : (
-        <ol className="ranked">
-          {view.ranked.map((r, i) => (
-            <li key={r.id}>
-              <span className="rank-n">{i + 1}</span>
-              <div>
-                <div className="rank-title">{r.title}</div>
-                <div className="rank-detail">{r.detail}</div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
 
-      <div className="subhead">
-        <span>DUE TODAY</span>
-        <span>calendar sync · M2</span>
+      <div className="prio-wrap">
+        {view.priority.length === 0 ? (
+          <p className="empty">Nothing open and nothing slipping. Add a task, or enjoy the quiet.</p>
+        ) : (
+          <ol className="prio">
+            {view.priority.map((r, i) => (
+              <li
+                key={r.key}
+                className={r.kind === "no_next_action" ? "orphan" : r.overdueP1 ? "overdue" : undefined}
+              >
+                <span className="rank-n">{i + 1}</span>
+                <div className="prio-body">
+                  <div className="rank-title">
+                    {r.kind === "no_next_action" && <span aria-hidden="true" className="tone-bad">▲ </span>}
+                    {r.title}
+                  </div>
+                  <ul className="chips" aria-label="Why this is ranked here">
+                    {r.chips.map((c) => (
+                      <li key={c} className={chipClass(c)}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+                {r.kind === "no_next_action" && (
+                  <a className="btn-add" href={`/tasks/new?goal=${encodeURIComponent(r.goalId)}`}>
+                    + Add one
+                  </a>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+
+        <div className="prio-side">
+          <div className="subhead" style={{ marginTop: 0 }}>
+            <span>DUE TODAY</span>
+            <span>calendar sync · M2</span>
+          </div>
+          {view.dueToday.length === 0 ? (
+            <p className="empty">Nothing else due today.</p>
+          ) : (
+            <ul className="sched">
+              {view.dueToday.map((d) => (
+                <li key={d.id} className={d.state}>
+                  <span className="t">{d.time}</span>
+                  <span className="pip" aria-hidden="true" />
+                  <span className="what">{d.title}</span>
+                  <span className="when">{d.when}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
-      {view.dueToday.length === 0 ? (
-        <p className="empty">Nothing else due today.</p>
-      ) : (
-        <ul className="sched">
-          {view.dueToday.map((d) => (
-            <li key={d.id} className={d.state}>
-              <span className="t">{d.time}</span>
-              <span className="pip" aria-hidden="true" />
-              <span className="what">{d.title}</span>
-              <span className="when">{d.when}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
+}
+
+/** Chips that signal urgency get the status color. Everything else stays neutral. */
+function chipClass(chip: string): string {
+  if (chip.startsWith("overdue") || chip === "goal at risk" || chip === "goal deadline passed") return "chip-bad";
+  if (chip === "due today" || chip === "goal behind pace" || chip === "P1") return "chip-warn";
+  if (chip === "blocked" || chip === "too long for now") return "chip-muted";
+  return "";
 }
 
 // ============================================================ quick commands
@@ -383,6 +393,12 @@ export function LedgerPanel({ view }: { view: DashboardView }) {
         <span>{days[0] ? shortDate(days[0].date) : ""}</span>
         <span>TODAY</span>
       </div>
+      {view.ledger.autoSummary && (
+        <p className="auto-line">
+          <span className="dot" aria-hidden="true" /> {view.ledger.autoSummary}
+          <span className="auto-tag">auto-derived · last 24h</span>
+        </p>
+      )}
 
       <div className="stats">
         <div>

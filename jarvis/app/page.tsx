@@ -2,14 +2,13 @@ import { redirect } from "next/navigation";
 import { Footer } from "@/components/dashboard/Footer";
 import {
   ActiveGoals,
-  Attention,
   GoalOrbit,
   LedgerPanel,
   ModelRouting,
   QuickCommands,
+  Priority,
   Signals,
   SystemOverview,
-  TodayRanked,
 } from "@/components/dashboard/panels";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -49,10 +48,9 @@ export default async function CommandCenter() {
         <main className="grid">
           <SystemOverview view={view} />
           <GoalOrbit view={view} />
-          <Attention view={view} />
-          <ActiveGoals view={view} />
-          <TodayRanked view={view} />
           <QuickCommands />
+          <ActiveGoals view={view} />
+          <Priority view={view} />
           <Signals view={view} />
           <LedgerPanel view={view} />
           <ModelRouting view={view} />
