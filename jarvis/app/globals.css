@@ -550,3 +550,14 @@ textarea.field, select.field { font: inherit; color: var(--ink); }
   .row-side { align-items: stretch; }
   .page-main { padding: 16px 16px 48px; }
 }
+
+.ledger .row { align-items: center; }
+.row-id { color: var(--ink-3); min-width: 56px; }
+.ledger .row-main { flex: 1 1 260px; }
+.ledger .is-reversed .row-title { text-decoration: line-through; color: var(--ink-3); }
+.ledger .is-reversal { border-style: dashed; }
+.notice { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line-2); }
+.notice.good { color: var(--good); border-color: rgba(52, 211, 153, 0.4); }
+.notice.bad { color: var(--bad); border-color: rgba(248, 113, 113, 0.4); }
+.confirm { display: inline-flex; gap: 6px; align-items: center; }
+.btn-add.danger { color: var(--bad); border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.08); }
