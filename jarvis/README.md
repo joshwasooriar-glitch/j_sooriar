@@ -61,14 +61,13 @@ Milestone 1 in progress. See `ROADMAP.md`.
 
 | Piece | State |
 |---|---|
-| Schema, RLS, triggers, reconcile | Written |
-| Progress engine + tests | **192 tests passing** |
-| Cost accounting and budget guards | Written and tested |
-| Intent router and context builder | Written and tested |
-| Next.js app shell, magic link auth | Written |
-| Command center dashboard | Written, reads the engine |
-| `/api/chat`, `/api/capture`, Ask bar | Written, every call tracked |
-| Goals and tasks pages | Not started |
+| Schema, RLS, triggers, reconcile, ledger functions | Written; **37 database checks** against real Postgres (`npm run test:sql`) |
+| Progress engine, score, capture, routing | **262 unit tests** |
+| Goals, tasks, milestones, Activity Ledger, focus block | Built |
+| Capture with Undo, count confirmation | Built, deterministic, $0 of LLM spend |
+| `/api/chat` | Built; answers from the engine with AI off |
+| Local real-service acceptance | **10 of 10 steps passed**, see `docs/ACCEPTANCE.md` |
+| Hosted-project acceptance | **Not run yet.** Required before merging to `main` |
 
 ---
 

@@ -6,6 +6,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_WORDS: Record<string, string> = { todo: "to do", in_progress: "in progress", blocked: "blocked" };
+
 /**
  * The Undo toast. Writes a compensating event through reverse_activity_event
  * with a 30 second limit measured on the database clock, so a browser cannot
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const r = await reverseEvent(db, body.data.event_id, UNDO_WINDOW_SECONDS, "undo");
-    const restored = r.restored_task_status ? ` The task is back to ${r.restored_task_status.replace("_", " ")}.` : "";
+    const restored = r.restored_task_status ? ` The task is back to ${STATUS_WORDS[r.restored_task_status] ?? r.restored_task_status}.` : "";
     return NextResponse.json({ kind: "undone", reply: `Undone.${restored}`, reversalEventId: r.reversal_event_id });
   } catch (err) {
     if (err instanceof LedgerError) {
