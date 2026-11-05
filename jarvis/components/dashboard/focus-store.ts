@@ -20,7 +20,16 @@ export type FocusState =
   | { status: "idle" }
   | { status: "running"; ref: string; startMono: number | null; startEpoch: number; recovered: boolean };
 
-let state: FocusState = { status: "idle" };
+/**
+ * useSyncExternalStore compares snapshots with Object.is. A snapshot function
+ * that builds a new object per call reads as a change on every render and
+ * React loops forever. So every snapshot is a stable, frozen object: one
+ * constant for idle (shared with the server snapshot), and a new object only
+ * when start() or clear() actually changes the state.
+ */
+const IDLE: FocusState = Object.freeze({ status: "idle" });
+
+let state: FocusState = IDLE;
 let hydrated = false;
 const listeners = new Set<() => void>();
 
@@ -36,7 +45,7 @@ function hydrate() {
     if (!raw) return;
     const saved = JSON.parse(raw) as { ref?: unknown; startEpoch?: unknown };
     if (typeof saved.ref === "string" && typeof saved.startEpoch === "number") {
-      state = { status: "running", ref: saved.ref, startMono: null, startEpoch: saved.startEpoch, recovered: true };
+      state = Object.freeze({ status: "running", ref: saved.ref, startMono: null, startEpoch: saved.startEpoch, recovered: true });
     }
   } catch {
     // Unreadable storage: start idle.
@@ -54,17 +63,17 @@ export const focusStore = {
     return state;
   },
   getServer(): FocusState {
-    return { status: "idle" };
+    return IDLE;
   },
   start() {
     if (state.status === "running") return;
-    state = {
+    state = Object.freeze({
       status: "running",
       ref: crypto.randomUUID(),
       startMono: performance.now(),
       startEpoch: Date.now(),
       recovered: false,
-    };
+    });
     try {
       window.localStorage.setItem(KEY, JSON.stringify({ ref: state.ref, startEpoch: state.startEpoch }));
     } catch {
@@ -80,7 +89,7 @@ export const focusStore = {
       : Math.max(0, Date.now() - state.startEpoch);
   },
   clear() {
-    state = { status: "idle" };
+    state = IDLE;
     try {
       window.localStorage.removeItem(KEY);
     } catch {
