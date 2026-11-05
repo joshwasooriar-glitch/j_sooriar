@@ -322,15 +322,27 @@ export function Signals({ view }: { view: DashboardView }) {
         <h2 id="sig-h" className="panel-title">Signals</h2>
       </div>
       <div className="rings">
-        <div className="ring">
-          <Ring value={b.usedFraction} color={budgetColor} label={`Budget used ${pct(b.usedFraction)}`}>
-            <text x="50" y="56" textAnchor="middle" fill="var(--ink)" fontSize="18" fontWeight="700">{pct(b.usedFraction)}</text>
-          </Ring>
-          <div>
-            <div className="ring-label">Budget used</div>
-            <div className="ring-sub">{fmt(b.spentCents)} / {fmt(b.limitCents)}</div>
+        {view.aiEnabled ? (
+          <div className="ring">
+            <Ring value={b.usedFraction} color={budgetColor} label={`Budget used ${pct(b.usedFraction)}`}>
+              <text x="50" y="56" textAnchor="middle" fill="var(--ink)" fontSize="18" fontWeight="700">{pct(b.usedFraction)}</text>
+            </Ring>
+            <div>
+              <div className="ring-label">Budget used</div>
+              <div className="ring-sub">{fmt(b.spentCents)} / {fmt(b.limitCents)}</div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="ring">
+            <Ring value={null} label="AI off">
+              <text x="50" y="56" textAnchor="middle" fill="var(--ink-3)" fontSize="16" fontWeight="700">OFF</text>
+            </Ring>
+            <div>
+              <div className="ring-label">AI</div>
+              <div className="ring-sub">no model calls</div>
+            </div>
+          </div>
+        )}
         <div className="ring">
           <Ring value={paceFrac} color="var(--warn)" label={`${op.count} of ${op.judgeable} goals on pace`}>
             <text x="50" y="56" textAnchor="middle" fill="var(--ink)" fontSize="18" fontWeight="700">{op.count}/{op.judgeable}</text>
@@ -432,7 +444,11 @@ export function ModelRouting({ view }: { view: DashboardView }) {
     <section className="panel span-4" aria-labelledby="route-h">
       <div className="panel-head">
         <h2 id="route-h" className="panel-title">Model routing</h2>
-        <span className="panel-note" style={{ color: state === "ok" ? "var(--good)" : "var(--warn)" }}>{stateLabel}</span>
+        {view.aiEnabled ? (
+          <span className="panel-note" style={{ color: state === "ok" ? "var(--good)" : "var(--warn)" }}>{stateLabel}</span>
+        ) : (
+          <span className="panel-note">AI OFF</span>
+        )}
       </div>
       <div className="routes">
         {view.routing.rows.map((r) => (
@@ -445,10 +461,14 @@ export function ModelRouting({ view }: { view: DashboardView }) {
                 {r.tier !== "embedding" && ` · ${r.pricing}`}
               </div>
             </div>
-            <div className="route-nums">
-              {r.tier !== "embedding" && <div className="route-share">{view.routing.totalCalls ? pct(r.share) : "0%"}</div>}
-              <div className="route-cost">{fmt(r.costCents)}</div>
-            </div>
+            {view.aiEnabled ? (
+              <div className="route-nums">
+                {r.tier !== "embedding" && <div className="route-share">{view.routing.totalCalls ? pct(r.share) : "0%"}</div>}
+                <div className="route-cost">{fmt(r.costCents)}</div>
+              </div>
+            ) : (
+              <div className="route-nums route-cost">off</div>
+            )}
           </div>
         ))}
         <div className="route blocked" title="$10 / $50 per M. Builds this repo, never runs in it.">
@@ -460,6 +480,7 @@ export function ModelRouting({ view }: { view: DashboardView }) {
           <div className="route-nums route-cost">blocked</div>
         </div>
       </div>
+      {view.aiEnabled && (
       <div className="cache-row">
         <span>Cached input</span>
         <div className="bar" role="img" aria-label={`Cached input ${pct(cache)}`}>
@@ -467,6 +488,7 @@ export function ModelRouting({ view }: { view: DashboardView }) {
         </div>
         <span className="mono">{pct(cache)}</span>
       </div>
+      )}
     </section>
   );
 }

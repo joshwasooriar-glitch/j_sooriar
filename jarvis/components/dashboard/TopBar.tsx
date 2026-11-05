@@ -17,10 +17,17 @@ export function TopBar({ view }: { view: DashboardView }) {
   return (
     <header className="topbar">
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <span className="pill" title={`Budget state: ${view.budget.state}`}>
-          <span className="dot" style={{ background: color, color }} />
-          AI BUDGET <b className="num" style={{ color }}>{fmt(view.budget.spentCents)}</b> / {fmt(view.budget.limitCents)}
-        </span>
+        {view.aiEnabled ? (
+          <span className="pill" title={`Budget state: ${view.budget.state}`}>
+            <span className="dot" style={{ background: color, color }} />
+            AI BUDGET <b className="num" style={{ color }}>{fmt(view.budget.spentCents)}</b> / {fmt(view.budget.limitCents)}
+          </span>
+        ) : (
+          <span className="pill ai-off" title="JARVIS_AI_ENABLED is off. No model requests are made. The engine still answers.">
+            <span className="dot" aria-hidden="true" />
+            AI OFF
+          </span>
+        )}
         {view.isDemo && (
           <span className="pill demo" title="Supabase is not configured. Numbers are derived from a built-in fixture.">
             DEMO DATA

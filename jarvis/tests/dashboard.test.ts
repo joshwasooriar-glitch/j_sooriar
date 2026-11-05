@@ -365,3 +365,12 @@ describe("shortenTitle", () => {
     expect(shortenTitle("Get fit")).toBe("Get fit");
   });
 });
+
+describe("buildDashboard: AI flag", () => {
+  it("defaults to AI off, like the flag", () => {
+    expect(buildDashboard(snap(), NOW).aiEnabled).toBe(false);
+  });
+  it("passes the server flag through", () => {
+    expect(buildDashboard(snap(), NOW, { aiEnabled: true }).aiEnabled).toBe(true);
+  });
+});

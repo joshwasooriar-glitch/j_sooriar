@@ -1,6 +1,7 @@
 import "server-only";
 import { budgetConfig } from "@/lib/ai/cost";
 import { BudgetLedger, type Llm } from "@/lib/ai/llm";
+import { aiEnabled } from "@/lib/ai/flags";
 import { hasOpenAIKey, makeOpenAILlm } from "@/lib/ai/openai";
 import type { MemoryLine } from "@/lib/ai/context";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
@@ -23,6 +24,7 @@ import { engineState, type EngineState } from "./state";
  */
 export interface RequestContext {
   now: Date;
+  aiEnabled: boolean;
   state: EngineState;
   memories: MemoryLine[];
   ledger: BudgetLedger;
@@ -56,7 +58,8 @@ function build(
 ): RequestContext {
   const state = engineState(snap, now);
   const ledger = new BudgetLedger(state.spentCents, budgetConfig());
-  const llm = db && userId && hasOpenAIKey() ? makeOpenAILlm({ record: modelRunRecorder(db, userId), ledger }) : null;
+  const ai = aiEnabled();
+  const llm = ai && db && userId && hasOpenAIKey() ? makeOpenAILlm({ record: modelRunRecorder(db, userId), ledger }) : null;
 
   const capture = async (text: string): Promise<CaptureSummary> => {
     const plan = await planCapture(text, state, llm);
@@ -81,7 +84,7 @@ function build(
     }
   };
 
-  return { now, state, memories, ledger, llm, capture, isDemo: db === null };
+  return { now, aiEnabled: ai, state, memories, ledger, llm, capture, isDemo: db === null };
 }
 
 function describe(plan: Extract<CapturePlan, { kind: "close_task" | "log_event" }>): string {

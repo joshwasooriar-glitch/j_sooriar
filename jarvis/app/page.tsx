@@ -12,6 +12,7 @@ import {
 } from "@/components/dashboard/panels";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { aiEnabled } from "@/lib/ai/flags";
 import { buildDashboard } from "@/lib/dashboard/view-model";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
 import { loadDashboardSnapshot } from "@/lib/db/dashboard";
@@ -38,7 +39,7 @@ export default async function CommandCenter() {
     snapshot = demoSnapshot(now);
   }
 
-  const view = buildDashboard(snapshot, now);
+  const view = buildDashboard(snapshot, now, { aiEnabled: aiEnabled() });
 
   return (
     <div className="shell">

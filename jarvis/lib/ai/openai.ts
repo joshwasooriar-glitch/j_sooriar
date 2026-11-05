@@ -6,6 +6,7 @@ import {
   type RunRecorder,
   type Usage,
 } from "./cost";
+import { AiDisabledError, aiEnabled } from "./flags";
 import { BudgetBlockedError, type BudgetLedger, type Llm } from "./llm";
 
 /** True when a key is configured. Never exposes the key itself. */
@@ -13,21 +14,36 @@ export function hasOpenAIKey(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
 
-let client: OpenAI | null = null;
-
-function openai(): OpenAI {
-  // maxRetries 0: an SDK-internal retry would be a second billed call with no
-  // model_runs row. Every attempt goes through withCostTracking on its own.
-  client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: 20_000 });
-  return client;
-}
-
 /**
- * The real Llm. Every call is budget-gated against the running ledger, then
- * made through withCostTracking so it writes exactly one model_runs row.
+ * The real Llm. Every call is checked against the AI flag first, then
+ * budget-gated against the running ledger, then made through withCostTracking
+ * so it writes exactly one model_runs row.
+ *
+ * `fetch` is injectable so a test can count outbound requests.
  */
-export function makeOpenAILlm(opts: { record: RunRecorder; ledger: BudgetLedger }): Llm {
+export function makeOpenAILlm(opts: {
+  record: RunRecorder;
+  ledger: BudgetLedger;
+  fetch?: typeof globalThis.fetch;
+}): Llm {
+  let client: OpenAI | null = null;
+  const openai = (): OpenAI => {
+    // maxRetries 0: an SDK-internal retry would be a second billed call with no
+    // model_runs row. Every attempt goes through withCostTracking on its own.
+    client ??= new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      maxRetries: 0,
+      timeout: 20_000,
+      ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    });
+    return client;
+  };
+
   return async (req) => {
+    // Checked on every call, before anything else, so no code path that holds
+    // an Llm can reach the network while the flag is off.
+    if (!aiEnabled()) throw new AiDisabledError();
+
     const decision = opts.ledger.check(req.tier);
     if (!decision.allowed) throw new BudgetBlockedError(decision);
 

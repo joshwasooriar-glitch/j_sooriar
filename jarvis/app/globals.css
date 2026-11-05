@@ -154,6 +154,8 @@ button, input { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 .pill b { color: var(--good); font-weight: 600; }
+.pill.ai-off { color: var(--ink-3); }
+.pill.ai-off .dot { background: var(--muted); box-shadow: none; }
 .pill.demo { border-color: rgba(250, 204, 21, 0.4); color: var(--warn); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px currentColor; flex: none; }
 .clock { text-align: center; }

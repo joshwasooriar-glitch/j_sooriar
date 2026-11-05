@@ -96,6 +96,8 @@ export interface DashboardView {
   nowIso: string;
   timeZone: string;
   isDemo: boolean;
+  /** JARVIS_AI_ENABLED. When false the UI says AI OFF instead of showing spend. */
+  aiEnabled: boolean;
   profile: {
     name: string;
     initial: string;
@@ -160,7 +162,12 @@ export interface DashboardView {
   milestone: { label: string; dueLabel: string | null } | null;
 }
 
-export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardView {
+export interface BuildOptions {
+  /** Server-side JARVIS_AI_ENABLED. Defaults to off, like the flag itself. */
+  aiEnabled?: boolean;
+}
+
+export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOptions = {}): DashboardView {
   const tz = snap.profile.timezone || "America/New_York";
   const today = localDateString(now, tz);
   const cfg = budgetConfig();
@@ -308,6 +315,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
     nowIso: now.toISOString(),
     timeZone: tz,
     isDemo: snap.isDemo,
+    aiEnabled: opts.aiEnabled ?? false,
     profile: {
       name,
       initial: name.charAt(0).toUpperCase(),

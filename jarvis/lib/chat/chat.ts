@@ -37,7 +37,7 @@ export const ChatRequest = z.object({
 });
 export type ChatRequest = z.infer<typeof ChatRequest>;
 
-export type ChatStatus = "ok" | "needs_confirmation" | "budget_blocked" | "unavailable";
+export type ChatStatus = "ok" | "needs_confirmation" | "budget_blocked" | "unavailable" | "ai_off";
 
 export interface ChatResponse {
   reply: string;
@@ -58,6 +58,8 @@ export interface CaptureSummary {
 
 export interface ChatDeps {
   now: Date;
+  /** JARVIS_AI_ENABLED. When false no model is called, whatever `llm` holds. */
+  aiEnabled: boolean;
   state: EngineState;
   memories: MemoryLine[];
   ledger: BudgetLedger;
@@ -71,7 +73,9 @@ const IntentName = z.enum([
   "memory", "simple_question", "research", "deep_research", "coding", "planning", "conversation",
 ]);
 
-export async function handleChat(req: ChatRequest, deps: ChatDeps): Promise<ChatResponse> {
+export async function handleChat(req: ChatRequest, input: ChatDeps): Promise<ChatResponse> {
+  // With AI off the model is removed outright, so no branch below can reach it.
+  const deps: ChatDeps = input.aiEnabled ? input : { ...input, llm: null };
   const { intent, routedBy } = await classify(req.message, deps);
 
   // ---- engine-first intents ----
@@ -111,6 +115,18 @@ export async function handleChat(req: ChatRequest, deps: ChatDeps): Promise<Chat
   }
 
   // ---- model intents ----
+  if (!deps.aiEnabled) {
+    return {
+      intent,
+      routedBy,
+      deterministic: false,
+      reply:
+        "AI is off, so I only answer from the engine: ask how your goals are going or what to work on next, or tell me what you finished.",
+      status: "ai_off",
+      tier: null,
+    };
+  }
+
   const requested = tierForIntent(intent);
   const decision = deps.ledger.check(requested);
   const base = { intent, routedBy, deterministic: false };

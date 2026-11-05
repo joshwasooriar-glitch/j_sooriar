@@ -4,7 +4,25 @@ A personal operating system with an AI layer on top. Goals, milestones, tasks,
 an append-only activity ledger, a deterministic progress engine, and a chat
 interface that reads computed numbers rather than calculating them.
 
-Built to run on **under $10 a month** in API spend. Current projection: **$2.03**.
+Built to run on **under $10 a month** in LLM API spend. Current projection: **$2.03**.
+
+## What "$0" means here
+
+Wherever this repo says **$0**, it means **$0 of LLM API spend**: the progress
+engine, the dashboard, capture, and the status answer never call a model.
+
+Infrastructure is **free tier, not free.** It costs nothing while usage stays
+inside the free limits of Supabase and Vercel, and those limits have rules:
+
+- **Supabase pauses a free-tier project after 7 days of inactivity.** A paused
+  project serves nothing and its pg_cron jobs, including the nightly reconcile,
+  do not run until you restore it from the Supabase dashboard. If JARVIS goes
+  unused for a week, expect to un-pause it.
+- Vercel Hobby has its own limits on function duration and usage.
+
+AI is **off by default.** Set `JARVIS_AI_ENABLED=true` (server-side) to allow
+model calls at all; with it off, no model request is made under any intent or
+budget state, and the dashboard reads **AI OFF**.
 
 ---
 

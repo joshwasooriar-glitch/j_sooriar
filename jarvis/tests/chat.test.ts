@@ -28,6 +28,7 @@ function deps(over: Partial<ChatDeps> & { spent?: number } = {}): ChatDeps {
   const state = engineState(demoSnapshot(NOW), NOW);
   return {
     now: NOW,
+    aiEnabled: true,
     state,
     memories: [],
     ledger: new BudgetLedger(over.spent ?? 100, CFG),

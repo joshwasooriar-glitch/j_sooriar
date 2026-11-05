@@ -96,7 +96,7 @@ JARVIS serves a portfolio reviewer and a daily user. These pull in different dir
 | TTS | macOS `say -v Daniel` | $0, Daniel is the UK English male system voice |
 | Wake word | openWakeWord or Porcupine | Local, $0 for personal use |
 
-**Total recurring infrastructure cost: $0.** Only OpenAI tokens cost money.
+**Total recurring infrastructure cost: $0 on free tiers.** Free tier is not free: Supabase pauses a free project after 7 days of inactivity, and cron does not run while it is paused. Only OpenAI tokens cost money, and only when `JARVIS_AI_ENABLED=true`.
 
 ---
 
