@@ -51,7 +51,9 @@ insert into auth.users (id, email, aud, role)
 values ('aaaaaaaa-0000-0000-0000-000000000001', 'a@test.local', 'authenticated', 'authenticated'),
        ('bbbbbbbb-0000-0000-0000-000000000002', 'b@test.local', 'authenticated', 'authenticated');
 insert into public.profiles (id, display_name)
-values ('aaaaaaaa-0000-0000-0000-000000000001', 'A'), ('bbbbbbbb-0000-0000-0000-000000000002', 'B');
+values ('aaaaaaaa-0000-0000-0000-000000000001', 'A'), ('bbbbbbbb-0000-0000-0000-000000000002', 'B')
+-- The signup trigger may already have created these.
+on conflict (id) do update set display_name = excluded.display_name;
 
 insert into public.goals (id, user_id, title, metric_type, target_value, unit, start_date, target_date)
 values ('00000000-0000-0000-0000-00000000a001', 'aaaaaaaa-0000-0000-0000-000000000001', 'Land a role', 'count', 60, 'applications', current_date - 30, current_date + 100),
