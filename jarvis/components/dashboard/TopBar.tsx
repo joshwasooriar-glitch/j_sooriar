@@ -1,6 +1,7 @@
 import { Icon } from "@/components/ui/icons";
 import { fmt } from "@/lib/ai/cost";
 import type { DashboardView } from "@/lib/dashboard/view-model";
+import { signOut } from "@/app/auth/actions";
 import { Clock } from "./Clock";
 
 const BUDGET_COLOR: Record<DashboardView["budget"]["state"], string> = {
@@ -53,6 +54,11 @@ export function TopBar({ view }: { view: DashboardView }) {
           </div>
           <div className="avatar" aria-hidden="true">{view.profile.initial}</div>
         </div>
+        {!view.isDemo && (
+          <form action={signOut}>
+            <button type="submit" className="link-btn">Sign out</button>
+          </form>
+        )}
       </div>
     </header>
   );

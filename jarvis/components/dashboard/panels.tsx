@@ -163,11 +163,11 @@ export function ActiveGoals({ view }: { view: DashboardView }) {
     <section className="panel span-5" aria-labelledby="goals-h">
       <div className="panel-head">
         <h2 id="goals-h" className="panel-title">Active goals</h2>
-        <a className="panel-note" href="/goals" style={{ color: "var(--accent)" }}>All {view.goals.length} ›</a>
+        <Link className="panel-note" href="/goals" style={{ color: "var(--accent)" }}>All {view.goals.length} ›</Link>
       </div>
       <div className="goal-grid">
         {shown.map((g) => (
-          <article key={g.id} className={`goal-card ${g.paceStatus}`}>
+          <Link key={g.id} href={`/goals/${g.id}`} className={`goal-card ${g.paceStatus}`}>
             <div className="goal-top">
               <span className="goal-title" title={g.title}>{g.shortTitle}</span>
               <span className="goal-val">{g.valueLabel}</span>
@@ -185,9 +185,9 @@ export function ActiveGoals({ view }: { view: DashboardView }) {
               <PaceChip card={g} />
               <span className="goal-due">{g.dueLabel ?? "OPEN"}</span>
             </div>
-          </article>
+          </Link>
         ))}
-        <a className="goal-new" href="/goals/new">+ New goal</a>
+        <Link className="goal-new" href="/goals/new">+ New goal</Link>
       </div>
     </section>
   );
@@ -225,7 +225,7 @@ export function Priority({ view }: { view: DashboardView }) {
                 <div className="prio-body">
                   <div className="rank-title">
                     {r.kind === "no_next_action" && <span aria-hidden="true" className="tone-bad">▲ </span>}
-                    {r.title}
+                    {r.kind === "task" ? <Link href={`/tasks/${r.taskId}`}>{r.title}</Link> : r.title}
                   </div>
                   <ul className="chips" aria-label="Why this is ranked here">
                     {r.chips.map((c) => (
@@ -234,9 +234,9 @@ export function Priority({ view }: { view: DashboardView }) {
                   </ul>
                 </div>
                 {r.kind === "no_next_action" && (
-                  <a className="btn-add" href={`/tasks/new?goal=${encodeURIComponent(r.goalId)}`}>
+                  <Link className="btn-add" href={`/tasks/new?goal=${encodeURIComponent(r.goalId)}`}>
                     + Add one
-                  </a>
+                  </Link>
                 )}
               </li>
             ))}

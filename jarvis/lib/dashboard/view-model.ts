@@ -61,6 +61,7 @@ export type PriorityRow =
   | {
       kind: "task";
       key: string;
+      taskId: string;
       title: string;
       /** Reason chips, straight from scoreTask plus priority and estimate. */
       chips: string[];
@@ -421,6 +422,7 @@ function toPriorityRow(a: PriorityAction, cards: GoalCard[]): PriorityRow {
   return {
     kind: "task",
     key: `task:${t.id}`,
+    taskId: t.id,
     title: t.title,
     chips: [
       `P${t.priority}`,
