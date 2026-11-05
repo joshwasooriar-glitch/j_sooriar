@@ -62,7 +62,7 @@ function deps(spent: number, aiOn: boolean, c: ReturnType<typeof counter>): Chat
     ledger,
     // Wired with a real Llm on purpose: the flag must hold even when one exists.
     llm: makeOpenAILlm({ record: c.record, ledger, fetch: c.fetch }),
-    capture: async () => ({ outcome: "closed_task", reply: "ok" }),
+    capture: async () => ({ kind: "no_match", reply: "ok" }),
   };
 }
 

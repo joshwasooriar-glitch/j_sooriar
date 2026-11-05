@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import { budgetConfig } from "@/lib/ai/cost";
+import type { CaptureResponse } from "@/lib/capture/protocol";
 import { buildContextPacket, deterministicStatusAnswer, type MemoryLine } from "@/lib/ai/context";
 import { BudgetBlockedError, type BudgetLedger, type Llm } from "@/lib/ai/llm";
 import type { ModelTier } from "@/lib/ai/models";
@@ -47,13 +48,8 @@ export interface ChatResponse {
   deterministic: boolean;
   status: ChatStatus;
   tier: ModelTier | null;
-  /** Present when capture ran. */
-  capture?: CaptureSummary;
-}
-
-export interface CaptureSummary {
-  outcome: "closed_task" | "logged" | "clarify" | "unavailable" | "demo";
-  reply: string;
+  /** Present when capture ran. The Ask bar renders Undo, pickers and confirmations from it. */
+  capture?: CaptureResponse;
 }
 
 export interface ChatDeps {
@@ -65,7 +61,7 @@ export interface ChatDeps {
   ledger: BudgetLedger;
   /** Null when no key is configured or there is no database to record runs in. */
   llm: Llm | null;
-  capture: (text: string) => Promise<CaptureSummary>;
+  capture: (text: string) => Promise<CaptureResponse>;
 }
 
 const IntentName = z.enum([
@@ -108,7 +104,7 @@ export async function handleChat(req: ChatRequest, input: ChatDeps): Promise<Cha
       intent,
       routedBy,
       deterministic: true,
-      status: capture.outcome === "unavailable" ? "unavailable" : "ok",
+      status: capture.kind === "error" ? "unavailable" : "ok",
       tier: null,
       capture,
     };

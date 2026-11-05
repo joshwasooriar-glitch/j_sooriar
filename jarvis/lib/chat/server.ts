@@ -1,26 +1,26 @@
 import "server-only";
 import { budgetConfig } from "@/lib/ai/cost";
-import { BudgetLedger, type Llm } from "@/lib/ai/llm";
 import { aiEnabled } from "@/lib/ai/flags";
+import { BudgetLedger, type Llm } from "@/lib/ai/llm";
 import { hasOpenAIKey, makeOpenAILlm } from "@/lib/ai/openai";
 import type { MemoryLine } from "@/lib/ai/context";
+import { captureContext } from "@/lib/capture/context";
+import type { CaptureResponse } from "@/lib/capture/protocol";
+import { runCapture, type CaptureServerContext } from "@/lib/capture/server";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
-import { applyCapturePlan } from "@/lib/db/capture";
 import { loadDashboardSnapshot } from "@/lib/db/dashboard";
 import { demoSnapshot } from "@/lib/db/demo";
 import { loadPromptMemories } from "@/lib/db/memories";
 import { modelRunRecorder } from "@/lib/db/model-runs";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient, type SupabaseServerClient } from "@/lib/supabase/server";
-import { planCapture, type CapturePlan } from "./capture";
-import type { CaptureSummary } from "./chat";
 import { engineState, type EngineState } from "./state";
 
 /**
  * Everything a chat or capture request needs, resolved once per request.
  *
- * Without Supabase this runs on the demo snapshot with no model: there is no
- * model_runs table to record a call in, and an unrecorded call is not allowed.
+ * Without Supabase this runs on the demo snapshot: plans are shown, nothing is
+ * written, and no model is called (there is no model_runs table to record in).
  */
 export interface RequestContext {
   now: Date;
@@ -29,14 +29,16 @@ export interface RequestContext {
   memories: MemoryLine[];
   ledger: BudgetLedger;
   llm: Llm | null;
-  capture: (text: string) => Promise<CaptureSummary>;
+  /** Free-text capture, as used by chat's progress_report intent. */
+  capture: (text: string) => Promise<CaptureResponse>;
+  captureServer: CaptureServerContext;
+  db: SupabaseServerClient | null;
   isDemo: boolean;
 }
 
 export async function loadRequestContext(now: Date): Promise<RequestContext | "unauthorized"> {
   if (!isSupabaseConfigured()) {
-    const snap = demoSnapshot(now);
-    return build(now, snap, [], null, null);
+    return build(now, demoSnapshot(now), [], null, null);
   }
 
   const db = await createSupabaseServerClient();
@@ -60,35 +62,18 @@ function build(
   const ledger = new BudgetLedger(state.spentCents, budgetConfig());
   const ai = aiEnabled();
   const llm = ai && db && userId && hasOpenAIKey() ? makeOpenAILlm({ record: modelRunRecorder(db, userId), ledger }) : null;
+  const captureServer: CaptureServerContext = { db, capture: captureContext(snap) };
 
-  const capture = async (text: string): Promise<CaptureSummary> => {
-    const plan = await planCapture(text, state, llm);
-    if (plan.kind === "clarify") {
-      const options = plan.candidates.length ? `\n${plan.candidates.map((c) => `- ${c}`).join("\n")}` : "";
-      return { outcome: "clarify", reply: plan.reply + options };
-    }
-    if (plan.kind === "unavailable") return { outcome: "unavailable", reply: plan.reply };
-
-    if (!db || !userId) {
-      return { outcome: "demo", reply: `Demo data: I would have ${describe(plan)}. Nothing was written.` };
-    }
-
-    const written = await applyCapturePlan(db, userId, plan, text, now);
-    switch (written.outcome) {
-      case "closed_task":
-        return { outcome: "closed_task", reply: `Closed "${written.taskTitle}" and logged it to the ledger.` };
-      case "already_done":
-        return { outcome: "closed_task", reply: `"${written.taskTitle}" was already done. Nothing new logged.` };
-      case "logged":
-        return { outcome: "logged", reply: `Logged ${written.quantity} ${written.eventType.replace(/_/g, " ")}.` };
-    }
+  return {
+    now,
+    aiEnabled: ai,
+    state,
+    memories,
+    ledger,
+    llm,
+    capture: (text) => runCapture({ action: "plan", text }, captureServer),
+    captureServer,
+    db,
+    isDemo: db === null,
   };
-
-  return { now, aiEnabled: ai, state, memories, ledger, llm, capture, isDemo: db === null };
-}
-
-function describe(plan: Extract<CapturePlan, { kind: "close_task" | "log_event" }>): string {
-  return plan.kind === "close_task"
-    ? `closed "${plan.task.title}"`
-    : `logged ${plan.quantity} ${plan.eventType.replace(/_/g, " ")}`;
 }

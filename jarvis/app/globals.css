@@ -328,7 +328,8 @@ button, input { font: inherit; color: inherit; }
   border: 1px solid var(--line); background: var(--bg-2);
   text-align: left; cursor: not-allowed;
 }
-.cmd:first-child { border-color: rgba(34, 211, 238, 0.35); background: var(--accent-dim); }
+.cmd.live { cursor: pointer; border-color: rgba(34, 211, 238, 0.35); background: var(--accent-dim); }
+.cmd.live:hover { background: rgba(34, 211, 238, 0.22); }
 .cmd .icon { color: var(--accent); flex: none; }
 .cmd .tag { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
 .cmd .tag.cost { color: var(--warn); border-color: rgba(250, 204, 21, 0.4); }
@@ -394,6 +395,23 @@ button, input { font: inherit; color: inherit; }
 .ask-reply p { margin: 0; }
 .ask-text { white-space: pre-wrap; font-size: 13.5px; }
 .ask-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pick-btn {
+  padding: 8px 12px; border-radius: 8px; cursor: pointer; text-align: left;
+  border: 1px solid rgba(34, 211, 238, 0.4); background: var(--accent-dim); color: var(--ink);
+}
+.pick-btn:hover:not(:disabled) { background: rgba(34, 211, 238, 0.22); }
+.pick-btn:disabled { opacity: 0.6; cursor: wait; }
+.pick-btn.ghost { background: transparent; border-color: var(--line-2); color: var(--ink-3); }
+.pick-btn.count { display: flex; flex-direction: column; gap: 2px; }
+.count-goal { font-weight: 600; font-size: 13px; }
+.count-line { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); }
+.mode {
+  flex: none; min-width: 42px; padding: 3px 8px; border-radius: 999px; cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+  border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink-2);
+}
+.mode.log { border-color: rgba(52, 211, 153, 0.5); color: var(--good); background: rgba(52, 211, 153, 0.08); }
 .ask-close { margin-left: auto; background: none; border: 0; color: var(--ink-3); font-size: 18px; cursor: pointer; line-height: 1; }
 .ask {
   display: flex; align-items: center; gap: 12px;

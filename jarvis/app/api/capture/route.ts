@@ -1,30 +1,36 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { z } from "zod";
+import { CaptureRequest } from "@/lib/capture/protocol";
+import { runCapture } from "@/lib/capture/server";
 import { loadRequestContext } from "@/lib/chat/server";
 
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ text: z.string().trim().min(1).max(1000) });
-
 /**
- * Quick capture: "finished the auth flow", "applied to 3 jobs". Closes the
- * matched task or appends a ledger row. Rules first, the model only when the
- * rules cannot decide, and a question back when neither is sure.
+ * Capture. Deterministic: no model call on any path.
+ *
+ *   { action: "plan", text }                  match and, if certain, complete
+ *   { action: "complete_task", task_id }      the picker's choice
+ *   { action: "log_progress", goal_id, ... }  a confirmed count
+ *
+ * A bare { text } is accepted as "plan".
  */
 export async function POST(request: NextRequest) {
-  const body = Body.safeParse(await request.json().catch(() => null));
+  const raw: unknown = await request.json().catch(() => null);
+  const withAction =
+    raw && typeof raw === "object" && !("action" in raw) && "text" in raw ? { ...raw, action: "plan" } : raw;
+  const body = CaptureRequest.safeParse(withAction);
   if (!body.success) {
-    return NextResponse.json({ error: "Expected { text: string } of 1 to 1000 characters." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid capture request." }, { status: 400 });
   }
 
   const ctx = await loadRequestContext(new Date());
   if (ctx === "unauthorized") return NextResponse.json({ error: "Sign in first." }, { status: 401 });
 
   try {
-    const res = await ctx.capture(body.data.text);
+    const res = await runCapture(body.data, ctx.captureServer);
     return NextResponse.json({ ...res, demo: ctx.isDemo });
   } catch (err) {
     console.error("capture failed", err);
-    return NextResponse.json({ error: "Capture failed. Check the ledger before retrying." }, { status: 500 });
+    return NextResponse.json({ error: "Capture failed. Check the Activity Ledger before retrying." }, { status: 500 });
   }
 }

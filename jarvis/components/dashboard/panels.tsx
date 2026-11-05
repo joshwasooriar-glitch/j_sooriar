@@ -3,7 +3,9 @@
  * never compute anything the view model did not already compute.
  */
 
+import Link from "next/link";
 import { Icon, type IconName } from "@/components/ui/icons";
+import { LogProgressCommand } from "./LogProgressCommand";
 import { Ring } from "@/components/ui/Ring";
 import { fmt } from "@/lib/ai/cost";
 import { PACE_DISPLAY, compactNumber, pct, shortDate } from "@/lib/dashboard/format";
@@ -276,12 +278,10 @@ function chipClass(chip: string): string {
 
 // ============================================================ quick commands
 
-export function QuickCommands() {
-  // Not wired yet: capture and chat land at build step 5. Tags say when.
-  const cmds: { icon: IconName; label: string; tag: string; cost?: boolean }[] = [
-    { icon: "plus", label: "Log progress", tag: "step 5" },
-    { icon: "check", label: "Add a task", tag: "step 6" },
-    { icon: "timer", label: "Start a focus block", tag: "step 5" },
+export function QuickCommands({ focusSlot }: { focusSlot?: React.ReactNode }) {
+  // Commands that are not built carry their milestone. They are disabled
+  // buttons, not links to a page that pretends to work.
+  const later: { icon: IconName; label: string; tag: string; cost?: boolean }[] = [
     { icon: "search", label: "Deep research", tag: "~20¢ · M3", cost: true },
     { icon: "chat", label: "Evening review", tag: "M2" },
   ];
@@ -291,8 +291,14 @@ export function QuickCommands() {
         <h2 id="cmd-h" className="panel-title">Quick commands</h2>
       </div>
       <div className="cmds">
-        {cmds.map((c) => (
-          <button key={c.label} type="button" className="cmd" aria-disabled="true" title={`Not wired yet (${c.tag})`}>
+        <LogProgressCommand />
+        <Link className="cmd live" href="/tasks/new">
+          <Icon name="check" />
+          <span>Add a task</span>
+        </Link>
+        {focusSlot}
+        {later.map((c) => (
+          <button key={c.label} type="button" className="cmd" disabled title={`Not built yet: ${c.tag}`}>
             <Icon name={c.icon} />
             <span>{c.label}</span>
             <span className={`tag ${c.cost ? "cost" : ""}`}>{c.tag}</span>

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { deterministicStatusAnswer } from "@/lib/ai/context";
 import type { BudgetConfig } from "@/lib/ai/cost";
 import { BudgetLedger, type Llm, type LlmRequest } from "@/lib/ai/llm";
-import { handleChat, type CaptureSummary, type ChatDeps } from "@/lib/chat/chat";
+import type { CaptureResponse } from "@/lib/capture/protocol";
+import { handleChat, type ChatDeps } from "@/lib/chat/chat";
 import { deterministicNextAction, engineState } from "@/lib/chat/state";
 import { demoSnapshot } from "@/lib/db/demo";
 
@@ -33,7 +34,12 @@ function deps(over: Partial<ChatDeps> & { spent?: number } = {}): ChatDeps {
     memories: [],
     ledger: new BudgetLedger(over.spent ?? 100, CFG),
     llm: null,
-    capture: async (): Promise<CaptureSummary> => ({ outcome: "closed_task", reply: "closed it" }),
+    capture: async (): Promise<CaptureResponse> => ({
+      kind: "completed",
+      reply: "closed it",
+      eventId: 1,
+      undoUntil: "2026-11-05T16:00:30Z",
+    }),
     ...over,
   };
 }
@@ -93,7 +99,7 @@ describe("handleChat: progress_report", () => {
   it("hands off to capture without a model call", async () => {
     const res = await handleChat({ message: "I finished the auth flow" }, deps({ llm: unreachable }));
     expect(res.intent).toBe("progress_report");
-    expect(res.capture?.outcome).toBe("closed_task");
+    expect(res.capture?.kind).toBe("completed");
     expect(res.reply).toBe("closed it");
   });
 });

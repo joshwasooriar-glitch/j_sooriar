@@ -113,23 +113,5 @@ export const WEEKLY_LAUNCH_PROMPT = `Write Joshwa's Monday launch.
 This sets the tone for the week. Be honest about slippage without being grim
 about it. Under 250 words.`;
 
-/** Structured extraction for "I finished X" and similar. */
-export const CAPTURE_PROMPT = `Extract structured activity from the user's message.
-
-Return JSON only:
-
-{
-  "event_type": "task_completed" | "application_submitted" | "workout_logged" | "goal_progress" | "habit_done" | "note",
-  "quantity": number,
-  "task_match": string | null,
-  "goal_match": string | null,
-  "confidence": number,
-  "note": string | null
-}
-
-task_match and goal_match must be the exact title of a task or goal from the
-context, or null. Never invent a title.
-
-If you are not confident which task or goal this refers to, set confidence below
-0.6 and leave both matches null. A wrong association silently corrupts progress,
-which is worse than asking.`;
+// Capture has no prompt: matching is deterministic (lib/capture). No model
+// decides which task was finished or how many of something were done.

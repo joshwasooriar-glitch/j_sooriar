@@ -1,157 +1,105 @@
 import { describe, expect, it } from "vitest";
-import type { Llm } from "@/lib/ai/llm";
-import { BudgetBlockedError } from "@/lib/ai/llm";
-import {
-  matchTaskByRules,
-  numbersInText,
-  planCapture,
-  planFromExtraction,
-  type CaptureState,
-  type Extraction,
-} from "@/lib/chat/capture";
-import type { Goal, Task } from "@/lib/engine/types";
+import { quantities } from "@/lib/capture/count";
+import { planCapture, type CapturePlan } from "@/lib/capture/plan";
+import { matchTask } from "@/lib/capture/tasks";
+import { normalize, stem, stripCompletion } from "@/lib/capture/text";
+import { CAPTURE_CASES, COUNT_GOALS, OPEN_TASKS, type Expected } from "./fixtures/captures";
 
-function task(id: string, title: string, over: Partial<Task> = {}): Task {
-  return {
-    id, title, goal_id: null, project_id: null, milestone_id: null, status: "todo",
-    priority: 2, due_at: null, estimate_minutes: null, scale: "micro", ...over,
-  };
+const ctx = { openTasks: OPEN_TASKS, countGoals: COUNT_GOALS };
+
+function summarize(p: CapturePlan): Expected {
+  switch (p.kind) {
+    case "complete_task":
+      return { kind: "complete_task", taskId: p.taskId, reason: p.reason };
+    case "task_picker":
+      return { kind: "task_picker", taskIds: p.options.map((o) => o.taskId).sort() };
+    case "confirm_count":
+      return { kind: "confirm_count", options: p.options.map((o) => ({ goalId: o.goalId, quantity: o.quantity })) };
+    case "no_match":
+      return { kind: "no_match" };
+  }
 }
 
-const goal = (id: string, title: string, over: Partial<Goal> = {}): Goal => ({
-  id, title, domain_id: null, metric_type: "count", target_value: 60, current_value: 0, unit: "applications",
-  start_date: "2026-09-01", target_date: "2027-01-31", priority: 1, status: "active", ...over,
-});
-
-const STATE: CaptureState = {
-  openTasks: [
-    task("auth", "Build the auth flow", { goal_id: "jarvis" }),
-    task("deep", "Deep work · auth flow"),
-    task("pset", "DATA 101 problem set 4"),
-    task("lift", "Lift"),
-  ],
-  activeGoals: [goal("career", "Land a SWE or data role"), goal("oracle", "ORACLE to beta", { metric_type: "percent", unit: "%" })],
-};
-
-const unreachable: Llm = async () => {
-  throw new Error("model was called");
-};
-
-const ext = (over: Partial<Extraction>): Extraction => ({
-  event_type: "task_completed", quantity: 1, task_match: null, goal_match: null, confidence: 0.9, note: null, ...over,
-});
-
-describe("matchTaskByRules", () => {
-  it("matches the north star phrasing with no model", () => {
-    expect(matchTaskByRules("I finished the auth flow.", STATE.openTasks)?.id).toBe("auth");
+describe("capture fixture", () => {
+  it.each(CAPTURE_CASES)("$text", ({ text, expect: want }) => {
+    const got = summarize(planCapture(text, ctx));
+    if (want.kind === "complete_task" && !want.reason) {
+      expect(got).toMatchObject({ kind: "complete_task", taskId: want.taskId });
+    } else if (want.kind === "task_picker") {
+      expect(got).toEqual({ kind: "task_picker", taskIds: [...want.taskIds].sort() });
+    } else {
+      expect(got).toEqual(want);
+    }
   });
 
-  it("needs a completion word", () => {
-    expect(matchTaskByRules("thinking about the auth flow", STATE.openTasks)).toBeNull();
-  });
-
-  it("picks the most specific title when one contains another", () => {
-    expect(matchTaskByRules("finished deep work on the auth flow", STATE.openTasks)?.id).toBe("deep");
-  });
-
-  it("refuses a tie", () => {
-    const tied = [task("a", "Run auth tests"), task("b", "Fix auth tests")];
-    expect(matchTaskByRules("finished: run and fix auth tests", tied)).toBeNull();
-  });
-
-  it("ignores titles with fewer than two identifying words", () => {
-    expect(matchTaskByRules("done lifting, finished the lift", STATE.openTasks)).toBeNull();
-  });
-
-  it("requires every identifying word, numbers included", () => {
-    expect(matchTaskByRules("finished DATA 101 problem set 3", STATE.openTasks)).toBeNull();
-    expect(matchTaskByRules("finished DATA 101 problem set 4", STATE.openTasks)?.id).toBe("pset");
+  it("has a realistic number of cases", () => {
+    expect(CAPTURE_CASES.length).toBeGreaterThanOrEqual(15);
   });
 });
 
-describe("numbersInText", () => {
-  it("reads digits and small number words", () => {
-    expect(numbersInText("applied to 4 jobs and two more")).toEqual([4, 2]);
+describe("text rules", () => {
+  it("normalizes case, punctuation and apostrophes", () => {
+    expect(normalize("  I've   FINISHED: the Auth-Flow!! ")).toBe("ive finished the auth flow");
+  });
+
+  it("strips completion language, multi-word phrases included", () => {
+    expect(stripCompletion("just wrapped up the auth flow")).toBe("the auth flow");
+    expect(stripCompletion("completed and done")).toBe("and");
+  });
+
+  it("stems consistently on both sides", () => {
+    expect(stem("bullets")).toBe("bullet");
+    expect(stem("followed")).toBe("follow");
+    expect(stem("applications")).toBe("application");
+    expect(stem("101")).toBe("101");
   });
 });
 
-describe("planFromExtraction", () => {
-  it("closes a task only when the title exactly matches an open task", () => {
-    const plan = planFromExtraction(ext({ task_match: "Build the auth flow" }), "x", STATE);
-    expect(plan).toMatchObject({ kind: "close_task", via: "model" });
+describe("quantities", () => {
+  it("ignores years, dates, times, ordinals and numbers after in/on/by", () => {
+    expect(quantities("3 applications in 2026, due by 5, on 12, at 3:30 on 11/5, the 3rd time, 1234")).toEqual([3]);
   });
-
-  it("asks instead of trusting an invented title", () => {
-    expect(planFromExtraction(ext({ task_match: "Build the login flow" }), "x", STATE).kind).toBe("clarify");
+  it("reads number words", () => {
+    expect(quantities("two sessions and twelve pages")).toEqual([2, 12]);
   });
-
-  it("asks when confidence is low", () => {
-    expect(planFromExtraction(ext({ task_match: "Build the auth flow", confidence: 0.4 }), "x", STATE).kind).toBe("clarify");
-  });
-
-  it("logs a count the user actually typed", () => {
-    const plan = planFromExtraction(
-      ext({ event_type: "application_submitted", quantity: 4, goal_match: "Land a SWE or data role" }),
-      "applied to 4 jobs today",
-      STATE,
-    );
-    expect(plan).toEqual({ kind: "log_event", eventType: "application_submitted", goalId: "career", quantity: 4, note: null, via: "model" });
-  });
-
-  it("defaults a single count event to 1", () => {
-    const plan = planFromExtraction(ext({ event_type: "workout_logged", quantity: 1 }), "hit the gym", STATE);
-    expect(plan).toMatchObject({ kind: "log_event", quantity: 1 });
-  });
-
-  it("refuses a quantity the user never said", () => {
-    const plan = planFromExtraction(
-      ext({ event_type: "goal_progress", quantity: 15, goal_match: "ORACLE to beta" }),
-      "made good progress on ORACLE",
-      STATE,
-    );
-    expect(plan.kind).toBe("clarify");
-  });
-
-  it("refuses a goal that does not exist", () => {
-    const plan = planFromExtraction(ext({ event_type: "application_submitted", goal_match: "Become an astronaut" }), "applied", STATE);
-    expect(plan.kind).toBe("clarify");
-  });
-
-  it("requires a goal for goal_progress", () => {
-    expect(planFromExtraction(ext({ event_type: "goal_progress", quantity: 5 }), "5 more", STATE).kind).toBe("clarify");
+  it("does not treat a or an as a quantity", () => {
+    expect(quantities("did an upper body session")).toEqual([]);
   });
 });
 
-describe("planCapture", () => {
-  it("closes by rules with no model call", async () => {
-    const plan = await planCapture("just finished the auth flow", STATE, unreachable);
-    expect(plan).toMatchObject({ kind: "close_task", via: "rules" });
+describe("count confirmation", () => {
+  it("shows the goal, the quantity and the resulting progress before any write", () => {
+    const p = planCapture("sent 3 applications", ctx);
+    expect(p).toEqual({
+      kind: "confirm_count",
+      question: "Log this?",
+      options: [
+        {
+          goalId: "career",
+          goalTitle: "Land a SWE or data role",
+          quantity: 3,
+          unit: "applications",
+          current: 11,
+          target: 60,
+          resulting: 14,
+          resultingFraction: 14 / 60,
+        },
+      ],
+    });
   });
 
-  it("uses the model when the rules miss, and validates its answer", async () => {
-    const llm: Llm = async (req) => {
-      expect(req.feature).toBe("capture");
-      expect(req.json).toBe(true);
-      return JSON.stringify({ event_type: "task_completed", quantity: 1, task_match: "DATA 101 problem set 4", goal_match: null, confidence: 0.9, note: null });
-    };
-    const plan = await planCapture("submitted the pset", STATE, llm);
-    expect(plan).toMatchObject({ kind: "close_task", via: "model" });
+  it("never matches a percent goal on a quantity", () => {
+    expect(planCapture("finished 10 %", ctx).kind).not.toBe("confirm_count");
+  });
+});
+
+describe("task matching edges", () => {
+  it("never offers done or cancelled tasks, because callers pass open tasks only", () => {
+    expect(matchTask("finished the auth flow", []).kind).toBe("no_match");
   });
 
-  it("asks when the model returns something unreadable", async () => {
-    const plan = await planCapture("submitted the pset", STATE, async () => "not json");
-    expect(plan.kind).toBe("clarify");
-  });
-
-  it("reports the budget reason when the gate blocks the model", async () => {
-    const llm: Llm = async () => {
-      throw new BudgetBlockedError({ allowed: false, tier: "default", needsConfirmation: true, reason: "Monthly budget reached." });
-    };
-    const plan = await planCapture("submitted the pset", STATE, llm);
-    expect(plan.kind).toBe("unavailable");
-  });
-
-  it("says what is missing when no model is configured", async () => {
-    expect((await planCapture("submitted the pset", STATE, null)).kind).toBe("unavailable");
+  it("does not auto-complete when two tasks share an exact title", () => {
+    const dupes = [OPEN_TASKS[0], { ...OPEN_TASKS[0], id: "auth-2" }];
+    expect(matchTask("build the auth flow", dupes).kind).toBe("picker");
   });
 });
