@@ -25,7 +25,7 @@ refused after 30 seconds, and that the Activity Ledger reverse has no time limit
 ## Run 1: local Supabase stack, November 5, 2026
 
 **Result: all 10 steps passed.** Full log, with the magic-link token redacted:
-[`acceptance/2026-11-05-local-supabase.log`](acceptance/2026-11-05-local-supabase.log).
+[`acceptance/2026-11-05-local-supabase.txt`](acceptance/2026-11-05-local-supabase.txt).
 
 **Environment:** `npx supabase start`. This is the real Supabase software,
 running locally: GoTrue auth, PostgREST, Postgres with every migration in
@@ -43,7 +43,7 @@ The app was a production build (`next build`, `next start`) with
 | Complete by capture | "Marked "Build the auth flow" complete." in 237 ms. `task_completed`, quantity 0, xp 10, via `capture:confident`. Task `done`. `audit_log.undo_payload.prior_status = todo` |
 | Undo, under 30 s | `reversal` row: quantity 0, xp -10, `external_ref` = the original id. The original row is still there. Task back to `todo`, `completed_at` null |
 | Undo, after 31 s | HTTP 410, `JV410`. Activity Ledger reverse then succeeded: 2 completions, 2 reversals, 0 deletions |
-| Count progress | Confirmation showed "Land a SWE or data role +3 applications Â· 0 â†’ 3 of 60 (5%)" with nothing written yet. Then `goal_progress` quantity 3, idempotency ref set; ledger value 3 |
+| Count progress | Confirmation showed "Land a SWE or data role +3 applications Â· 0 -†’ 3 of 60 (5%)" with nothing written yet. Then `goal_progress` quantity 3, idempotency ref set; ledger value 3 |
 | Focus block | Nothing written on Start. Stop after 62 s: one `focus_session`, 1 minute, `elapsed_ms` 62,091, not capped |
 | Sign out | `/` redirects to `/login`; 0 session cookies left |
 | AI off | `model_runs` rows for the user: **0** |
