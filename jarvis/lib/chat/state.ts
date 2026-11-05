@@ -5,6 +5,7 @@
  * dashboard computes them, so chat and dashboard can never disagree.
  */
 
+import { effectiveEvents } from "@/lib/engine/ledger";
 import { topTasksForToday } from "@/lib/engine/next-action";
 import { computeGoalProgress, currentValueFromEvents, furthestBehind } from "@/lib/engine/progress";
 import { computeStreak } from "@/lib/engine/score";
@@ -32,22 +33,24 @@ export interface EngineState {
 export function engineState(snap: DashboardSnapshot, now: Date): EngineState {
   const tz = snap.profile.timezone || "America/New_York";
 
+  const events = effectiveEvents(snap.events);
+
   const activeGoals = snap.goals
     .filter((g) => g.status === "active")
     .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title));
 
   const progress = activeGoals.map((g) =>
-    computeGoalProgress({ ...g, current_value: currentValueFromEvents(g, snap.events) }, now, tz),
+    computeGoalProgress({ ...g, current_value: currentValueFromEvents(g, events) }, now, tz),
   );
   const progressByGoal = new Map(progress.map((p) => [p.goal_id, p]));
 
   const openTasks = snap.tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
   const overdueCount = openTasks.filter((t) => t.due_at && new Date(t.due_at).getTime() < now.getTime()).length;
 
-  const score = dailyScoreFor(snap, snap.events, now, tz);
+  const score = dailyScoreFor(snap, events, now, tz);
 
   const goalTitle = new Map(activeGoals.map((g) => [g.id, g.title]));
-  const recentEvents = [...snap.events]
+  const recentEvents = [...events]
     .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
     .slice(0, 8)
     .map((e) => {
@@ -66,7 +69,7 @@ export function engineState(snap: DashboardSnapshot, now: Date): EngineState {
     openTasks,
     topTasks: topTasksForToday(openTasks, now, 3, { progressByGoal }),
     overdueCount,
-    streak: computeStreak(snap.events, now, tz),
+    streak: computeStreak(events, now, tz),
     todayScore: score.score,
     scoreCoverage: { measured: score.coverage.measured, of: score.coverage.of },
     spentCents: snap.modelRunsThisMonth.reduce((s, r) => s + (Number(r.cost_cents) || 0), 0),

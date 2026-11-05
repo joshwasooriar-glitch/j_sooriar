@@ -12,6 +12,7 @@
 
 import { budgetConfig, budgetState, projectMonthly, type BudgetState } from "@/lib/ai/cost";
 import { MODELS, type ModelTier } from "@/lib/ai/models";
+import { effectiveEvents } from "@/lib/engine/ledger";
 import { prioritizeActions, type PriorityAction } from "@/lib/engine/next-action";
 import {
   computeGoalProgress,
@@ -176,6 +177,10 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
   const today = localDateString(now, tz);
   const cfg = budgetConfig();
 
+  // Reversed pairs (an event plus its compensating reversal) are dropped before
+  // anything is counted. Raw row counts below still use snap.events.
+  const events = effectiveEvents(snap.events);
+
   // ---------------- goals, from the ledger ----------------
   const activeGoals = snap.goals
     .filter((g) => g.status === "active")
@@ -187,7 +192,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
   const colorIndex = new Map(colorOrder.map((g, idx) => [g.id, idx]));
 
   const goalCards: GoalCard[] = activeGoals.map((g) => {
-    const current = currentValueFromEvents(g, snap.events);
+    const current = currentValueFromEvents(g, events);
     const progress = computeGoalProgress({ ...g, current_value: current }, now, tz);
     return toGoalCard(g, current, progress, colorIndex.get(g.id) ?? 0);
   });
@@ -217,7 +222,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
   let thisWeek = 0;
   let habitHits = 0;
 
-  for (const e of snap.events) {
+  for (const e of events) {
     const d = eventDay(e);
     if (!last14Set.has(d)) continue;
     countsByDay.set(d, (countsByDay.get(d) ?? 0) + 1);
@@ -235,8 +240,8 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
 
   // ---------------- score ----------------
   const activeHabits = snap.habits.filter((h) => h.active);
-  const daily = dailyScoreFor(snap, snap.events, now, tz);
-  const totalXp = snap.events.reduce((s, e) => s + (Number(e.xp) || 0), 0);
+  const daily = dailyScoreFor(snap, events, now, tz);
+  const totalXp = events.reduce((s, e) => s + (Number(e.xp) || 0), 0);
   const level = levelFromXp(totalXp);
 
   // ---------------- budget ----------------
@@ -265,7 +270,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
 
   // ---------------- auto-derived, last 24 hours ----------------
   const autoSummary = summarizeAuto(
-    snap.events.filter(
+    events.filter(
       (e) => AUTO_SOURCES.has(e.source) && now.getTime() - new Date(e.occurred_at).getTime() <= 86_400_000,
     ),
   );
@@ -325,7 +330,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOp
       reviewDone: daily.consistency.reviewDone,
       level: level.level,
       totalXp,
-      streak: computeStreak(snap.events, now, tz),
+      streak: computeStreak(events, now, tz),
       levelProgress: level.nextAt > 0 ? level.intoLevel / level.nextAt : 0,
     },
     budget,

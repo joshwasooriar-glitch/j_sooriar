@@ -374,3 +374,28 @@ describe("buildDashboard: AI flag", () => {
     expect(buildDashboard(snap(), NOW, { aiEnabled: true }).aiEnabled).toBe(true);
   });
 });
+
+describe("buildDashboard: reversals", () => {
+  it("drops a reversed pair from goal values, XP and the ledger day counts", () => {
+    const g = goal({ id: "a", title: "A", metric_type: "count", target_value: 10, unit: "sessions" });
+    const v = buildDashboard(
+      snap({
+        goals: [g],
+        events: [
+          ev({ id: 1, goal_id: "a", quantity: 3, xp: 10, occurred_at: "2026-09-28T14:00:00Z" }),
+          ev({ id: 2, goal_id: "a", quantity: 2, xp: 10, occurred_at: "2026-09-28T14:05:00Z" }),
+          ev({
+            id: 3, event_type: "reversal", source: "reversal", goal_id: "a", quantity: -3, xp: -10,
+            occurred_at: "2026-09-28T14:06:00Z", meta: { reverses_event_id: 1 },
+          }),
+        ],
+      }),
+      NOW,
+    );
+    expect(v.goals[0].current).toBe(2);
+    expect(v.score.totalXp).toBe(10);
+    expect(v.ledger.days.at(-1)?.count).toBe(1);
+    // The raw row count is still every row in the append-only ledger.
+    expect(v.ledger.total).toBe(3);
+  });
+});
