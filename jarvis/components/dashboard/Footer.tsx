@@ -38,9 +38,9 @@ export function Footer({ view }: { view: DashboardView }) {
 
       <AskBar />
 
-      <button type="button" className="btn-ghost" aria-disabled="true" title="Morning brief is Milestone 2">
+      <button type="button" className="btn-ghost" disabled title="Not built yet: the morning brief is Milestone 2">
         <Icon name="doc" size={16} />
-        Morning brief
+        Morning brief <span className="tag">M2</span>
       </button>
     </footer>
   );

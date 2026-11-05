@@ -39,12 +39,12 @@ export function TopBar({ view }: { view: DashboardView }) {
       <Clock initialIso={view.nowIso} timeZone={view.timeZone} />
 
       <div className="topbar-right">
-        <div className="search" role="search" aria-label="Search, coming with the command palette">
+        <div className="search inert" title="Not built yet: the command palette is unscheduled">
           <Icon name="search" size={16} />
           <span>Search goals, tasks, memory</span>
-          <kbd>⌘K</kbd>
+          <kbd>LATER</kbd>
         </div>
-        <span className="icon-btn" aria-label="Notifications">
+        <span className="icon-btn inert" title="Not built yet: notifications are unscheduled" aria-hidden="true">
           <Icon name="bell" size={16} />
         </span>
         <div className="user">

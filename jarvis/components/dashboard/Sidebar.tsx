@@ -1,37 +1,32 @@
+import Link from "next/link";
 import { Icon, type IconName } from "@/components/ui/icons";
+import { milestoneTag, ROUTES } from "@/lib/routes";
 import { Ring } from "@/components/ui/Ring";
 import { FocusButton } from "./FocusButton";
 import { compactNumber } from "@/lib/dashboard/format";
 import type { DashboardView } from "@/lib/dashboard/view-model";
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: IconName;
-  badge?: { text: string; kind?: "hot" | "accent" | "tag" };
-  disabled?: boolean;
-}
+const ICONS: Record<string, IconName> = {
+  "/": "grid",
+  "/goals": "target",
+  "/tasks": "check",
+  "/timeline": "timeline",
+  "/activity": "ledger",
+  "/calendar": "calendar",
+  "/projects": "folder",
+  "/memory": "memory",
+  "/jobs": "jobs",
+  "/budget": "dollar",
+  "/voice": "mic",
+};
 
 export function Sidebar({ view }: { view: DashboardView }) {
-  const items: NavItem[] = [
-    { href: "/", label: "Command Center", icon: "grid" },
-    { href: "/goals", label: "Goals", icon: "target", badge: { text: String(view.nav.goals), kind: "accent" } },
-    {
-      href: "/tasks",
-      label: "Tasks",
-      icon: "check",
-      badge: view.nav.tasksDue > 0 ? { text: `${view.nav.tasksDue} due`, kind: "hot" } : undefined,
-    },
-    { href: "/timeline", label: "Timeline", icon: "timeline" },
-    { href: "/activity", label: "Activity Ledger", icon: "ledger" },
-    { href: "/calendar", label: "Calendar", icon: "calendar" },
-    { href: "/projects", label: "Projects", icon: "folder", badge: { text: String(view.nav.projects) } },
-    { href: "/memory", label: "Memory", icon: "memory", badge: { text: String(view.nav.memory) } },
-    { href: "/jobs", label: "Jobs", icon: "jobs", badge: { text: String(view.nav.jobs) } },
-    { href: "/budget", label: "Budget", icon: "dollar" },
-    // Voice is Milestone 5. Shown, but honest about it.
-    { href: "/voice", label: "Voice", icon: "mic", badge: { text: "DEC 7", kind: "tag" }, disabled: true },
-  ];
+  // Built pages show live counts. Unbuilt pages show their milestone instead,
+  // from the same registry their not-built page reads.
+  const counts: Record<string, { text: string; kind?: "hot" | "accent" } | undefined> = {
+    "/goals": { text: String(view.nav.goals), kind: "accent" },
+    "/tasks": view.nav.tasksDue > 0 ? { text: `${view.nav.tasksDue} due`, kind: "hot" } : undefined,
+  };
 
   return (
     <aside className="sidebar">
@@ -44,18 +39,27 @@ export function Sidebar({ view }: { view: DashboardView }) {
       </div>
 
       <nav className="nav" aria-label="Primary">
-        {items.map((it) => (
-          <a
-            key={it.href}
-            href={it.disabled ? undefined : it.href}
-            aria-current={it.href === "/" ? "page" : undefined}
-            aria-disabled={it.disabled || undefined}
-          >
-            <Icon name={it.icon} />
-            <span>{it.label}</span>
-            {it.badge && <span className={`badge ${it.badge.kind ?? ""}`}>{it.badge.text}</span>}
-          </a>
-        ))}
+        {ROUTES.map((r) => {
+          const tag = milestoneTag(r.milestone);
+          const count = counts[r.href];
+          return (
+            <Link
+              key={r.href}
+              href={r.href}
+              aria-current={r.href === "/" ? "page" : undefined}
+              className={tag ? "unbuilt" : undefined}
+              title={tag ? `Not built yet: ${r.milestone}` : undefined}
+            >
+              <Icon name={ICONS[r.href] ?? "grid"} />
+              <span>{r.label}</span>
+              {tag ? (
+                <span className="badge tag">{tag}</span>
+              ) : (
+                count && <span className={`badge ${count.kind ?? ""}`}>{count.text}</span>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       <section className="score-card" aria-label="Today's score">
