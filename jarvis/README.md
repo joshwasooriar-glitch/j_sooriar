@@ -82,8 +82,9 @@ npx supabase start
 npm run db:push
 npm run db:types
 
-# optional: realistic data to develop against
-SEED_USER_ID=<your auth.users id> npm run seed
+# optional: realistic data to develop against. The seed scripts read .env.local
+# (tsx --env-file), so put SUPABASE_SERVICE_ROLE_KEY and SEED_USER_ID there.
+npm run seed
 
 npm run dev
 ```
