@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankTasks, scoreTask, topTasksForToday } from "../lib/engine/next-action";
+import { prioritizeActions, rankTasks, scoreTask, topTasksForToday } from "../lib/engine/next-action";
 import { computeGoalProgress } from "../lib/engine/progress";
 import type { Goal, GoalProgress, Task } from "../lib/engine/types";
 
@@ -144,5 +144,87 @@ describe("topTasksForToday", () => {
       task({ title: `free-${i}`, goal_id: null }),
     );
     expect(topTasksForToday(tasks, NOW, 3)).toHaveLength(3);
+  });
+});
+
+describe("prioritizeActions", () => {
+  function gp(over: Partial<GoalProgress> & Pick<GoalProgress, "goal_id" | "paceStatus">): GoalProgress {
+    return {
+      title: over.goal_id,
+      percentComplete: 0.2,
+      expectedProgress: 0.5,
+      paceDelta: -0.3,
+      daysElapsed: 30,
+      daysRemaining: 60,
+      totalDays: 90,
+      requiredDailyRate: 1,
+      actualDailyRate: 0.5,
+      projectedFinalValue: 50,
+      willMissTarget: true,
+      remaining: 80,
+      isOverdue: false,
+      ...over,
+    };
+  }
+
+  it("puts overdue P1 first, then goals with no next action, then the rest", () => {
+    const tasks = [
+      task({ title: "soon", priority: 1, due_at: hoursFromNow(4) }),
+      task({ title: "late p1", priority: 1, due_at: hoursFromNow(-2) }),
+      task({ title: "late p2", priority: 2, due_at: hoursFromNow(-30) }),
+    ];
+    const out = prioritizeActions(tasks, [gp({ goal_id: "g", paceStatus: "at_risk" })], NOW);
+    expect(out.map((a) => (a.kind === "task" ? a.ranked.task.title : `goal:${a.goal.goal_id}`))).toEqual([
+      "late p1",
+      "goal:g",
+      "late p2",
+      "soon",
+    ]);
+  });
+
+  it("orders the rest exactly as rankTasks does", () => {
+    const tasks = [task({ title: "a", priority: 4 }), task({ title: "b", priority: 2 }), task({ title: "c", status: "in_progress" })];
+    const out = prioritizeActions(tasks, [], NOW);
+    expect(out.map((a) => (a.kind === "task" ? a.ranked.task.title : ""))).toEqual(
+      rankTasks(tasks, NOW).map((r) => r.task.title),
+    );
+  });
+
+  it("adds goal rows only for behind or at risk goals with no open task", () => {
+    const goals = [
+      gp({ goal_id: "risk", paceStatus: "at_risk", paceDelta: -0.4 }),
+      gp({ goal_id: "behind", paceStatus: "behind", paceDelta: -0.2 }),
+      gp({ goal_id: "slight", paceStatus: "slightly_behind", paceDelta: -0.1 }),
+      gp({ goal_id: "fine", paceStatus: "on_track", paceDelta: 0 }),
+      gp({ goal_id: "covered", paceStatus: "at_risk", paceDelta: -0.5 }),
+    ];
+    const tasks = [
+      task({ title: "covers it", goal_id: "covered" }),
+      task({ title: "already done", goal_id: "behind", status: "done" }),
+    ];
+    const ids = prioritizeActions(tasks, goals, NOW)
+      .filter((a) => a.kind === "no_next_action")
+      .map((a) => (a.kind === "no_next_action" ? a.goal.goal_id : ""));
+    // Worst paceDelta first. A done task does not count as a next action.
+    expect(ids).toEqual(["risk", "behind"]);
+  });
+
+  it("counts a blocked task as open", () => {
+    const out = prioritizeActions(
+      [task({ title: "stuck", goal_id: "g", status: "blocked" })],
+      [gp({ goal_id: "g", paceStatus: "at_risk" })],
+      NOW,
+    );
+    expect(out.some((a) => a.kind === "no_next_action")).toBe(false);
+  });
+
+  it("caps the list at n", () => {
+    const tasks = Array.from({ length: 10 }, (_, i) => task({ title: `t${i}` }));
+    expect(prioritizeActions(tasks, [], NOW)).toHaveLength(6);
+    expect(prioritizeActions(tasks, [], NOW, 3)).toHaveLength(3);
+  });
+
+  it("returns an empty list when there is nothing to do", () => {
+    expect(prioritizeActions([], [], NOW)).toEqual([]);
   });
 });

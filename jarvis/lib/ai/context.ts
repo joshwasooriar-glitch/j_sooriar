@@ -44,6 +44,8 @@ export interface PacketInput {
   calendar: CalendarLine[];
   streak: number;
   todayScore: number | null;
+  /** How many score components were measurable. Lets the packet say why a score is missing. */
+  scoreCoverage?: { measured: number; of: number };
   spentCents: number;
   budgetCents: number;
   /** Optional untrusted external content. Always wrapped, never inlined raw. */
@@ -151,7 +153,7 @@ export function buildContextPacket(input: PacketInput): Packet {
         add("prefs", renderMemories(input.memories));
         break;
       case "streak":
-        add("streak", renderStreak(input.streak, input.todayScore));
+        add("streak", renderStreak(input.streak, input.todayScore, input.scoreCoverage));
         break;
     }
   }
@@ -211,9 +213,15 @@ function renderMemories(memories: MemoryLine[]): string {
   return `WHAT I KNOW ABOUT THE USER\n${lines.join("\n")}`;
 }
 
-function renderStreak(streak: number, score: number | null): string {
+function renderStreak(
+  streak: number,
+  score: number | null,
+  coverage?: { measured: number; of: number },
+): string {
   const bits = [`Streak: ${streak} days`];
   if (score != null) bits.push(`Today's score: ${score}/100`);
+  // Say it is unavailable outright, so the model has nothing to fill in.
+  else if (coverage) bits.push(`Today's score: unavailable (${coverage.measured} of ${coverage.of} components measurable)`);
   return bits.join(". ");
 }
 

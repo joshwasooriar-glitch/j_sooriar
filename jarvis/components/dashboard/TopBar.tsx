@@ -1,6 +1,7 @@
 import { Icon } from "@/components/ui/icons";
 import { fmt } from "@/lib/ai/cost";
 import type { DashboardView } from "@/lib/dashboard/view-model";
+import { signOut } from "@/app/auth/actions";
 import { Clock } from "./Clock";
 
 const BUDGET_COLOR: Record<DashboardView["budget"]["state"], string> = {
@@ -17,10 +18,17 @@ export function TopBar({ view }: { view: DashboardView }) {
   return (
     <header className="topbar">
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <span className="pill" title={`Budget state: ${view.budget.state}`}>
-          <span className="dot" style={{ background: color, color }} />
-          AI BUDGET <b className="num" style={{ color }}>{fmt(view.budget.spentCents)}</b> / {fmt(view.budget.limitCents)}
-        </span>
+        {view.aiEnabled ? (
+          <span className="pill" title={`Budget state: ${view.budget.state}`}>
+            <span className="dot" style={{ background: color, color }} />
+            AI BUDGET <b className="num" style={{ color }}>{fmt(view.budget.spentCents)}</b> / {fmt(view.budget.limitCents)}
+          </span>
+        ) : (
+          <span className="pill ai-off" title="JARVIS_AI_ENABLED is off. No model requests are made. The engine still answers.">
+            <span className="dot" aria-hidden="true" />
+            AI OFF
+          </span>
+        )}
         {view.isDemo && (
           <span className="pill demo" title="Supabase is not configured. Numbers are derived from a built-in fixture.">
             DEMO DATA
@@ -31,12 +39,12 @@ export function TopBar({ view }: { view: DashboardView }) {
       <Clock initialIso={view.nowIso} timeZone={view.timeZone} />
 
       <div className="topbar-right">
-        <div className="search" role="search" aria-label="Search, coming with the command palette">
+        <div className="search inert" title="Not built yet: the command palette is unscheduled">
           <Icon name="search" size={16} />
           <span>Search goals, tasks, memory</span>
-          <kbd>⌘K</kbd>
+          <kbd>LATER</kbd>
         </div>
-        <span className="icon-btn" aria-label="Notifications">
+        <span className="icon-btn inert" title="Not built yet: notifications are unscheduled" aria-hidden="true">
           <Icon name="bell" size={16} />
         </span>
         <div className="user">
@@ -46,6 +54,11 @@ export function TopBar({ view }: { view: DashboardView }) {
           </div>
           <div className="avatar" aria-hidden="true">{view.profile.initial}</div>
         </div>
+        {!view.isDemo && (
+          <form action={signOut}>
+            <button type="submit" className="link-btn">Sign out</button>
+          </form>
+        )}
       </div>
     </header>
   );

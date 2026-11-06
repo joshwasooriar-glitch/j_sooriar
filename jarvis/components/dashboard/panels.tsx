@@ -3,7 +3,9 @@
  * never compute anything the view model did not already compute.
  */
 
+import Link from "next/link";
 import { Icon, type IconName } from "@/components/ui/icons";
+import { LogProgressCommand } from "./LogProgressCommand";
 import { Ring } from "@/components/ui/Ring";
 import { fmt } from "@/lib/ai/cost";
 import { PACE_DISPLAY, compactNumber, pct, shortDate } from "@/lib/dashboard/format";
@@ -66,7 +68,7 @@ export function SystemOverview({ view }: { view: DashboardView }) {
  * where elapsed time says the goal should be. The gap between them is paceDelta.
  */
 export function GoalOrbit({ view }: { view: DashboardView }) {
-  const goals = view.goals.slice(0, 5);
+  const goals = (view.goals ?? []).slice(0, 5);
   const size = 300;
   const c = size / 2;
   const stroke = 10;
@@ -153,45 +155,19 @@ export function GoalOrbit({ view }: { view: DashboardView }) {
   );
 }
 
-// ============================================================ attention
-
-const SEV_GLYPH = { critical: "▲", warning: "▲", due: "●", auto: "●", budget: "●" } as const;
-
-export function Attention({ view }: { view: DashboardView }) {
-  return (
-    <section className="panel span-3" aria-labelledby="attn-h">
-      <div className="panel-head">
-        <h2 id="attn-h" className="panel-title">What needs attention</h2>
-        {view.criticalCount > 0 && <span className="panel-note bad">● {view.criticalCount} critical</span>}
-      </div>
-      <div className="attn-list">
-        {view.attention.map((a) => (
-          <div key={a.key} className={`attn ${a.severity}`}>
-            <span className="glyph" aria-hidden="true">{SEV_GLYPH[a.severity]}</span>
-            <div>
-              <div className="attn-title">{a.title}</div>
-              <div className="attn-detail">{a.detail}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 // ============================================================ active goals
 
 export function ActiveGoals({ view }: { view: DashboardView }) {
-  const shown = view.goals.slice(0, 5);
+  const shown = (view.goals ?? []).slice(0, 5);
   return (
     <section className="panel span-5" aria-labelledby="goals-h">
       <div className="panel-head">
         <h2 id="goals-h" className="panel-title">Active goals</h2>
-        <a className="panel-note" href="/goals" style={{ color: "var(--accent)" }}>All {view.goals.length} ›</a>
+        <Link className="panel-note" href="/goals" style={{ color: "var(--accent)" }}>All {view.goals?.length ?? 0} ›</Link>
       </div>
       <div className="goal-grid">
         {shown.map((g) => (
-          <article key={g.id} className={`goal-card ${g.paceStatus}`}>
+          <Link key={g.id} href={`/goals/${g.id}`} className={`goal-card ${g.paceStatus}`}>
             <div className="goal-top">
               <span className="goal-title" title={g.title}>{g.shortTitle}</span>
               <span className="goal-val">{g.valueLabel}</span>
@@ -209,69 +185,106 @@ export function ActiveGoals({ view }: { view: DashboardView }) {
               <PaceChip card={g} />
               <span className="goal-due">{g.dueLabel ?? "OPEN"}</span>
             </div>
-          </article>
+          </Link>
         ))}
-        <a className="goal-new" href="/goals/new">+ New goal</a>
+        <Link className="goal-new" href="/goals/new">+ New goal</Link>
       </div>
     </section>
   );
 }
 
-// ============================================================ today ranked
+// ============================================================ priority
 
-export function TodayRanked({ view }: { view: DashboardView }) {
+/**
+ * One ranked list of actions, from prioritizeActions. Replaces the old
+ * attention list and top three: an alert you cannot act on is noise, and a
+ * goal slipping with nothing queued shows up as its own row.
+ */
+export function Priority({ view }: { view: DashboardView }) {
+  // A missing list (stale build, unexpected shape) renders as empty, not as a crash.
+  const priority = view.priority ?? [];
+  const dueToday = view.dueToday ?? [];
   return (
-    <section className="panel span-4" aria-labelledby="rank-h">
+    <section className="panel span-7" aria-labelledby="prio-h">
       <div className="panel-head">
-        <h2 id="rank-h" className="panel-title">Today · ranked</h2>
-        <span className="panel-note">engine, not a model</span>
+        <h2 id="prio-h" className="panel-title">Priority</h2>
+        <span className="panel-note">
+          {view.overdueP1Count > 0 && <span className="tone-bad">▲ {view.overdueP1Count} overdue P1 · </span>}
+          engine, not a model
+        </span>
       </div>
-      {view.ranked.length === 0 ? (
-        <p className="empty">No open tasks. Add one, or enjoy the quiet.</p>
-      ) : (
-        <ol className="ranked">
-          {view.ranked.map((r, i) => (
-            <li key={r.id}>
-              <span className="rank-n">{i + 1}</span>
-              <div>
-                <div className="rank-title">{r.title}</div>
-                <div className="rank-detail">{r.detail}</div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
 
-      <div className="subhead">
-        <span>DUE TODAY</span>
-        <span>calendar sync · M2</span>
+      <div className="prio-wrap">
+        {priority.length === 0 ? (
+          <p className="empty">Nothing open and nothing slipping. Add a task, or enjoy the quiet.</p>
+        ) : (
+          <ol className="prio">
+            {priority.map((r, i) => (
+              <li
+                key={r.key}
+                className={r.kind === "no_next_action" ? "orphan" : r.overdueP1 ? "overdue" : undefined}
+              >
+                <span className="rank-n">{i + 1}</span>
+                <div className="prio-body">
+                  <div className="rank-title">
+                    {r.kind === "no_next_action" && <span aria-hidden="true" className="tone-bad">▲ </span>}
+                    {r.kind === "task" ? <Link href={`/tasks/${r.taskId}`}>{r.title}</Link> : r.title}
+                  </div>
+                  <ul className="chips" aria-label="Why this is ranked here">
+                    {r.chips.map((c) => (
+                      <li key={c} className={chipClass(c)}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+                {r.kind === "no_next_action" && (
+                  <Link className="btn-add" href={`/tasks/new?goal=${encodeURIComponent(r.goalId)}`}>
+                    + Add one
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+
+        <div className="prio-side">
+          <div className="subhead" style={{ marginTop: 0 }}>
+            <span>DUE TODAY</span>
+            <span>calendar sync · M2</span>
+          </div>
+          {dueToday.length === 0 ? (
+            <p className="empty">Nothing else due today.</p>
+          ) : (
+            <ul className="sched">
+              {dueToday.map((d) => (
+                <li key={d.id} className={d.state}>
+                  <span className="t">{d.time}</span>
+                  <span className="pip" aria-hidden="true" />
+                  <span className="what">{d.title}</span>
+                  <span className="when">{d.when}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
-      {view.dueToday.length === 0 ? (
-        <p className="empty">Nothing else due today.</p>
-      ) : (
-        <ul className="sched">
-          {view.dueToday.map((d) => (
-            <li key={d.id} className={d.state}>
-              <span className="t">{d.time}</span>
-              <span className="pip" aria-hidden="true" />
-              <span className="what">{d.title}</span>
-              <span className="when">{d.when}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
+}
+
+/** Chips that signal urgency get the status color. Everything else stays neutral. */
+function chipClass(chip: string): string {
+  if (chip.startsWith("overdue") || chip === "goal at risk" || chip === "goal deadline passed") return "chip-bad";
+  if (chip === "due today" || chip === "goal behind pace" || chip === "P1") return "chip-warn";
+  if (chip === "blocked" || chip === "too long for now") return "chip-muted";
+  return "";
 }
 
 // ============================================================ quick commands
 
-export function QuickCommands() {
-  // Not wired yet: capture and chat land at build step 5. Tags say when.
-  const cmds: { icon: IconName; label: string; tag: string; cost?: boolean }[] = [
-    { icon: "plus", label: "Log progress", tag: "step 5" },
-    { icon: "check", label: "Add a task", tag: "step 6" },
-    { icon: "timer", label: "Start a focus block", tag: "step 5" },
+export function QuickCommands({ focusSlot }: { focusSlot?: React.ReactNode }) {
+  // Commands that are not built carry their milestone. They are disabled
+  // buttons, not links to a page that pretends to work.
+  const later: { icon: IconName; label: string; tag: string; cost?: boolean }[] = [
     { icon: "search", label: "Deep research", tag: "~20¢ · M3", cost: true },
     { icon: "chat", label: "Evening review", tag: "M2" },
   ];
@@ -281,8 +294,14 @@ export function QuickCommands() {
         <h2 id="cmd-h" className="panel-title">Quick commands</h2>
       </div>
       <div className="cmds">
-        {cmds.map((c) => (
-          <button key={c.label} type="button" className="cmd" aria-disabled="true" title={`Not wired yet (${c.tag})`}>
+        <LogProgressCommand />
+        <Link className="cmd live" href="/tasks/new">
+          <Icon name="check" />
+          <span>Add a task</span>
+        </Link>
+        {focusSlot}
+        {later.map((c) => (
+          <button key={c.label} type="button" className="cmd" disabled title={`Not built yet: ${c.tag}`}>
             <Icon name={c.icon} />
             <span>{c.label}</span>
             <span className={`tag ${c.cost ? "cost" : ""}`}>{c.tag}</span>
@@ -312,15 +331,27 @@ export function Signals({ view }: { view: DashboardView }) {
         <h2 id="sig-h" className="panel-title">Signals</h2>
       </div>
       <div className="rings">
-        <div className="ring">
-          <Ring value={b.usedFraction} color={budgetColor} label={`Budget used ${pct(b.usedFraction)}`}>
-            <text x="50" y="56" textAnchor="middle" fill="var(--ink)" fontSize="18" fontWeight="700">{pct(b.usedFraction)}</text>
-          </Ring>
-          <div>
-            <div className="ring-label">Budget used</div>
-            <div className="ring-sub">{fmt(b.spentCents)} / {fmt(b.limitCents)}</div>
+        {view.aiEnabled ? (
+          <div className="ring">
+            <Ring value={b.usedFraction} color={budgetColor} label={`Budget used ${pct(b.usedFraction)}`}>
+              <text x="50" y="56" textAnchor="middle" fill="var(--ink)" fontSize="18" fontWeight="700">{pct(b.usedFraction)}</text>
+            </Ring>
+            <div>
+              <div className="ring-label">Budget used</div>
+              <div className="ring-sub">{fmt(b.spentCents)} / {fmt(b.limitCents)}</div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="ring">
+            <Ring value={null} label="AI off">
+              <text x="50" y="56" textAnchor="middle" fill="var(--ink-3)" fontSize="16" fontWeight="700">OFF</text>
+            </Ring>
+            <div>
+              <div className="ring-label">AI</div>
+              <div className="ring-sub">no model calls</div>
+            </div>
+          </div>
+        )}
         <div className="ring">
           <Ring value={paceFrac} color="var(--warn)" label={`${op.count} of ${op.judgeable} goals on pace`}>
             <text x="50" y="56" textAnchor="middle" fill="var(--ink)" fontSize="18" fontWeight="700">{op.count}/{op.judgeable}</text>
@@ -347,7 +378,7 @@ export function Signals({ view }: { view: DashboardView }) {
 // ============================================================ ledger
 
 export function LedgerPanel({ view }: { view: DashboardView }) {
-  const days = view.ledger.days;
+  const days = view.ledger?.days ?? [];
   const W = 320;
   const H = 110;
   const pad = 10;
@@ -383,6 +414,12 @@ export function LedgerPanel({ view }: { view: DashboardView }) {
         <span>{days[0] ? shortDate(days[0].date) : ""}</span>
         <span>TODAY</span>
       </div>
+      {view.ledger.autoSummary && (
+        <p className="auto-line">
+          <span className="dot" aria-hidden="true" /> {view.ledger.autoSummary}
+          <span className="auto-tag">auto-derived · last 24h</span>
+        </p>
+      )}
 
       <div className="stats">
         <div>
@@ -416,10 +453,14 @@ export function ModelRouting({ view }: { view: DashboardView }) {
     <section className="panel span-4" aria-labelledby="route-h">
       <div className="panel-head">
         <h2 id="route-h" className="panel-title">Model routing</h2>
-        <span className="panel-note" style={{ color: state === "ok" ? "var(--good)" : "var(--warn)" }}>{stateLabel}</span>
+        {view.aiEnabled ? (
+          <span className="panel-note" style={{ color: state === "ok" ? "var(--good)" : "var(--warn)" }}>{stateLabel}</span>
+        ) : (
+          <span className="panel-note">AI OFF</span>
+        )}
       </div>
       <div className="routes">
-        {view.routing.rows.map((r) => (
+        {(view.routing?.rows ?? []).map((r) => (
           <div key={r.tier} className={`route ${r.tier}`} title={r.modelId}>
             <span className="pip" style={{ background: TIER_PIP[r.tier] }} />
             <div>
@@ -429,10 +470,14 @@ export function ModelRouting({ view }: { view: DashboardView }) {
                 {r.tier !== "embedding" && ` · ${r.pricing}`}
               </div>
             </div>
-            <div className="route-nums">
-              {r.tier !== "embedding" && <div className="route-share">{view.routing.totalCalls ? pct(r.share) : "0%"}</div>}
-              <div className="route-cost">{fmt(r.costCents)}</div>
-            </div>
+            {view.aiEnabled ? (
+              <div className="route-nums">
+                {r.tier !== "embedding" && <div className="route-share">{view.routing.totalCalls ? pct(r.share) : "0%"}</div>}
+                <div className="route-cost">{fmt(r.costCents)}</div>
+              </div>
+            ) : (
+              <div className="route-nums route-cost">off</div>
+            )}
           </div>
         ))}
         <div className="route blocked" title="$10 / $50 per M. Builds this repo, never runs in it.">
@@ -444,6 +489,7 @@ export function ModelRouting({ view }: { view: DashboardView }) {
           <div className="route-nums route-cost">blocked</div>
         </div>
       </div>
+      {view.aiEnabled && (
       <div className="cache-row">
         <span>Cached input</span>
         <div className="bar" role="img" aria-label={`Cached input ${pct(cache)}`}>
@@ -451,6 +497,7 @@ export function ModelRouting({ view }: { view: DashboardView }) {
         </div>
         <span className="mono">{pct(cache)}</span>
       </div>
+      )}
     </section>
   );
 }

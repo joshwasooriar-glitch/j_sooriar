@@ -4,7 +4,25 @@ A personal operating system with an AI layer on top. Goals, milestones, tasks,
 an append-only activity ledger, a deterministic progress engine, and a chat
 interface that reads computed numbers rather than calculating them.
 
-Built to run on **under $10 a month** in API spend. Current projection: **$2.03**.
+Built to run on **under $10 a month** in LLM API spend. Current projection: **$2.03**.
+
+## What "$0" means here
+
+Wherever this repo says **$0**, it means **$0 of LLM API spend**: the progress
+engine, the dashboard, capture, and the status answer never call a model.
+
+Infrastructure is **free tier, not free.** It costs nothing while usage stays
+inside the free limits of Supabase and Vercel, and those limits have rules:
+
+- **Supabase pauses a free-tier project after 7 days of inactivity.** A paused
+  project serves nothing and its pg_cron jobs, including the nightly reconcile,
+  do not run until you restore it from the Supabase dashboard. If JARVIS goes
+  unused for a week, expect to un-pause it.
+- Vercel Hobby has its own limits on function duration and usage.
+
+AI is **off by default.** Set `JARVIS_AI_ENABLED=true` (server-side) to allow
+model calls at all; with it off, no model request is made under any intent or
+budget state, and the dashboard reads **AI OFF**.
 
 ---
 
@@ -43,13 +61,13 @@ Milestone 1 in progress. See `ROADMAP.md`.
 
 | Piece | State |
 |---|---|
-| Schema, RLS, triggers, reconcile | Written |
-| Progress engine + tests | **146 tests passing** |
-| Cost accounting and budget guards | Written and tested |
-| Intent router and context builder | Written and tested |
-| Next.js app shell, magic link auth | Written |
-| Command center dashboard | Written, reads the engine |
-| Chat, capture, goals and tasks pages | Not started |
+| Schema, RLS, triggers, reconcile, ledger functions | Written; **37 database checks** against real Postgres (`npm run test:sql`) |
+| Progress engine, score, capture, routing | **262 unit tests** |
+| Goals, tasks, milestones, Activity Ledger, focus block | Built |
+| Capture with Undo, count confirmation | Built, deterministic, $0 of LLM spend |
+| `/api/chat` | Built; answers from the engine with AI off |
+| Local real-service acceptance | **10 of 10 steps passed**, see `docs/ACCEPTANCE.md` |
+| Hosted-project acceptance | **10 of 10 steps passed** (November 6), see `docs/ACCEPTANCE.md` |
 
 ---
 
@@ -64,8 +82,9 @@ npx supabase start
 npm run db:push
 npm run db:types
 
-# optional: realistic data to develop against
-SEED_USER_ID=<your auth.users id> npm run seed
+# optional: realistic data to develop against. The seed scripts read .env.local
+# (tsx --env-file), so put SUPABASE_SERVICE_ROLE_KEY and SEED_USER_ID there.
+npm run seed
 
 npm run dev
 ```
@@ -160,3 +179,20 @@ than a crash because it fails quietly.
 Boundary cases are tested explicitly: zero elapsed time, target date in the
 past, target value of zero, null target date, negative quantities, goals created
 today, and the DST transition.
+
+## Troubleshooting
+
+- **Switched git branches while `npm run dev` was running, and now pages crash
+  or half-render** (errors about properties that no longer exist, components
+  from the other branch): the dev server's `.next` cache still holds the other
+  branch's compiled code. Stop the server, run `rm -rf .next`, and start it
+  again. Do this after any branch switch that changes `app/`, `components/` or
+  `lib/`.
+- **A dashboard panel shows "This panel could not load"**: that panel threw
+  while rendering and was contained so the rest of the page still works. The
+  browser console has the error. After a branch switch, the fix above clears it.
+- **`npm run seed` says Missing env**: the seed scripts read `.env.local`. Put
+  `SUPABASE_SERVICE_ROLE_KEY` and `SEED_USER_ID` there.
+- **The hosted project stopped responding after a quiet week**: Supabase pauses
+  free-tier projects after 7 days of inactivity. Restore it from the Supabase
+  dashboard.

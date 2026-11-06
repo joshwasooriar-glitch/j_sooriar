@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { requestOrigin } from "@/lib/http/origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const Input = z.object({ email: z.string().trim().email() });
@@ -13,7 +14,7 @@ export async function sendMagicLink(formData: FormData) {
   if (!parsed.success) redirect("/login?error=invalid");
 
   const h = await headers();
-  const origin = h.get("origin") ?? `https://${h.get("host")}`;
+  const origin = h.get("origin") ?? requestOrigin(h, "http://localhost:3000");
 
   const db = await createSupabaseServerClient();
   const { error } = await db.auth.signInWithOtp({

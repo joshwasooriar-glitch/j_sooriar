@@ -1,0 +1,112 @@
+Test user joshwa.accept.1793915507537@example.com (325aa086-004d-4d49-af5b-eb1ce6adff62). App http://127.0.0.1:3100. Started 2026-11-05T21:51:47.996Z
+
+━━ STEP 1: Sign in with a real magic link
+   magic link: http://127.0.0.1:54321/auth/v1/verify?token=……&type=magiclink&redirect_to=http://127.0.0.1:3100/auth/callback
+   signed in, session cookie: sb-127-auth-token-flow-5d1ac955ee51442d2a448979fdc6fbfb-code-verifier, sb-127-auth-token-flows-code-verifier, sb-127-auth-token
+   evidence: profile created by the signup trigger
+     id | display_name | timezone
+     325aa086-004d-4d49-af5b-eb1ce6adff62 | joshwa.accept.1793915507537 | America/New_York
+   PASS
+
+━━ STEP 2: Dashboard reads AI OFF, never $0.00 / $10.00
+   top bar pill: "AI OFF"
+   PASS
+
+━━ STEP 3: Create a count goal
+   evidence: goals row (no derived columns; current_value is the cache, 0)
+     id | title | metric_type | target_value | unit | target_date | priority | current_value
+     62ff57c9-e782-4fa6-a4b2-41b5fa1b3e87 | Land a SWE or data role | count | 60 | applications | 2027-02-03 | 1 | 0
+   evidence: domain created inline
+     name
+     Career
+   PASS
+
+━━ STEP 4: Create a task under the goal
+   evidence: tasks row
+     id | title | status | priority | goal_id
+     6d1388d1-221c-4aa7-89fa-5379da701fc9 | Build the auth flow | todo | 1 | 62ff57c9-e782-4fa6-a4b2-41b5fa1b3e87
+   PASS
+
+━━ STEP 5: Complete it by capture: "I finished the auth flow"
+   reply after 237 ms: "Marked "Build the auth flow" complete."
+   evidence: ledger row written
+     id | event_type | for_task | quantity | xp | source | via
+     105 | task_completed | t | 0 | 10 | manual | capture:confident
+   evidence: task closed
+     status | has_completed_at
+     done | t
+   evidence: prior status kept for undo
+     action | undo_payload
+     complete_task | {"task_id": "6d1388d1-221c-4aa7-89fa-5379da701fc9", "event_id": 105, "prior_status": "todo", "prior_completed_at": null}
+   PASS
+
+━━ STEP 6: Undo it within 30 seconds
+   button: "Undo (30s)"
+   reply: "Undone. The task is back to to do."
+   evidence: compensating row (negated, points at the original); original still present
+     id | event_type | quantity | xp | source | external_ref | reverses
+     105 | task_completed | 0 | 10 | manual |  | 
+     106 | reversal | 0 | -10 | reversal | 105 | 105
+   evidence: task status restored
+     status | completed_at
+     todo |
+   PASS
+
+━━ STEP 7: Undo is refused after 30 seconds; the Activity Ledger reverses with no time limit
+   completed again from the task page: event #107. Waiting 31 s...
+   /api/undo after 31 s -> HTTP 410: "The 30 second undo window has passed. You can still reverse it from the Activity Ledger."
+   evidence: two completions, two reversals, nothing deleted
+     id | event_type | quantity | xp | reverses | reason
+     105 | task_completed | 0 | 10 |  | 
+     106 | reversal | 0 | -10 | 105 | undo
+     107 | task_completed | 0 | 10 |  | 
+     108 | reversal | 0 | -10 | 107 | ledger
+   evidence: task restored again
+     status | completed_at
+     todo |
+   PASS
+
+━━ STEP 8: Log count progress: "sent 3 applications", confirmed before writing
+   confirmation shown: "Land a SWE or data role+3 applications · 0 → 3 of 60 (5%)"
+   reply: "Logged 3 applications to Land a SWE or data role: now 3 of 60."
+   evidence: goal_progress row
+     id | event_type | quantity | xp | source | idempotency_ref
+     109 | goal_progress | 3 | 10 | manual | t
+   evidence: goal value from the ledger
+     ledger_value
+     3
+   PASS
+
+━━ STEP 9: Run a focus block (one event on Stop)
+   started; nothing written. Waiting 62 s...
+   button before stop: "Stop focus · 1:02"
+   reply: "Recorded a 1 minute focus block."
+   evidence: exactly one focus_session row
+     id | event_type | quantity | xp | minutes | capped | elapsed_ms
+     110 | focus_session | 1 | 8 | 1 | false | 62091
+   PASS
+
+━━ STEP 10: Sign out
+   / now redirects to /login; session cookies left: 0
+   PASS
+
+━━ FINAL LEDGER FOR THE TEST USER
+id | event_type | quantity | xp | source | reverses
+105 | task_completed | 0 | 10 | manual | 
+106 | reversal | 0 | -10 | reversal | 105
+107 | task_completed | 0 | 10 | manual | 
+108 | reversal | 0 | -10 | reversal | 107
+109 | goal_progress | 3 | 10 | manual | 
+110 | focus_session | 1 | 8 | manual |
+
+━━ AUDIT LOG
+id | action | target_table | permission_level | result
+39 | complete_task | tasks | 1 | success
+40 | reverse_event | activity_events | 1 | success
+41 | complete_task | tasks | 1 | success
+42 | reverse_event | activity_events | 1 | success
+
+model_runs rows for this user (AI off, expect 0): 0
+browser page errors: none
+
+ALL 10 STEPS PASSED  2026-11-05T21:53:26.927Z

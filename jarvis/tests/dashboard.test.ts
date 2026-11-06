@@ -169,51 +169,60 @@ describe("buildDashboard: goals", () => {
   });
 });
 
-describe("buildDashboard: attention", () => {
-  it("flags a stalled goal as critical", () => {
-    const v = buildDashboard(
-      snap({
-        goals: [goal({ id: "o", title: "ORACLE", start_date: "2026-07-30" })],
-        events: [ev({ goal_id: "o", quantity: 18, occurred_at: "2026-09-12T15:00:00Z" })],
-      }),
-      NOW,
+describe("buildDashboard: priority", () => {
+  // Starts Aug 30, ends Dec 28: 30 of 120 days elapsed, 25% expected.
+  const slipping = goal({ id: "o", title: "ORACLE", start_date: "2026-08-29", target_date: "2026-12-27" });
+
+  it("shows six rows ranked by scoreTask", () => {
+    const tasks = Array.from({ length: 8 }, (_, i) =>
+      task({ id: `t${i}`, title: `Task ${i}`, priority: (i % 5) + 1 }),
     );
-    const stalled = v.attention.find((a) => a.key === "stalled:o");
-    expect(stalled?.severity).toBe("critical");
-    expect(stalled?.title).toContain("16 days");
-    expect(v.criticalCount).toBe(1);
+    const v = buildDashboard(snap({ tasks }), NOW);
+    expect(v.priority).toHaveLength(6);
+    expect(v.priority.slice(0, 2).map((r) => r.title).sort()).toEqual(["Task 0", "Task 5"]);
   });
 
-  it("does not call a goal stalled when it started inside the stall window", () => {
+  it("keeps the reason chips, with priority and estimate", () => {
     const v = buildDashboard(
-      snap({ goals: [goal({ id: "n", title: "New", start_date: "2026-09-25" })] }),
+      snap({ tasks: [task({ id: "a", title: "Problem set", priority: 1, status: "in_progress", due_at: "2026-09-29T12:00:00Z", estimate_minutes: 120 })] }),
       NOW,
     );
-    expect(v.attention.some((a) => a.key.startsWith("stalled"))).toBe(false);
+    expect(v.priority[0].chips).toEqual(["P1", "due today", "already started", "120 min"]);
   });
 
-  it("surfaces P1 tasks due within 24 hours and ignores low priority ones", () => {
+  it("adds a no next action row for a slipping goal with no open task", () => {
+    const v = buildDashboard(snap({ goals: [slipping] }), NOW);
+    const row = v.priority.find((r) => r.kind === "no_next_action");
+    expect(row?.title).toBe("ORACLE has no next action");
+    // 0% done vs 25% expected is a delta of -0.25: behind, not yet at risk.
+    expect(row?.chips[0]).toBe("goal behind pace");
+  });
+
+  it("ranks the synthetic row below overdue P1 tasks and above everything else", () => {
     const v = buildDashboard(
       snap({
+        goals: [slipping],
         tasks: [
-          task({ id: "p1", title: "Problem set", priority: 1, due_at: "2026-09-29T12:00:00Z" }),
-          task({ id: "p4", title: "Laundry", priority: 4, due_at: "2026-09-28T20:00:00Z" }),
+          task({ id: "due", title: "Due P1", priority: 1, due_at: "2026-09-28T20:00:00Z" }),
+          task({ id: "late", title: "Overdue P1", priority: 1, due_at: "2026-09-28T10:00:00Z" }),
         ],
       }),
       NOW,
     );
-    expect(v.attention.find((a) => a.key === "due:p1")?.title).toBe("Problem set due in 20 hours");
-    expect(v.attention.some((a) => a.key === "due:p4")).toBe(false);
+    expect(v.priority.map((r) => r.key)).toEqual(["task:late", "goal:o", "task:due"]);
+    expect(v.overdueP1Count).toBe(1);
   });
 
-  it("marks an overdue P1 task critical", () => {
+  it("drops the synthetic row once the goal has an open task", () => {
     const v = buildDashboard(
-      snap({ tasks: [task({ id: "x", title: "Late", priority: 1, due_at: "2026-09-28T10:00:00Z" })] }),
+      snap({ goals: [slipping], tasks: [task({ id: "x", title: "Next step", goal_id: "o" })] }),
       NOW,
     );
-    expect(v.attention.find((a) => a.key === "due:x")?.severity).toBe("critical");
+    expect(v.priority.some((r) => r.kind === "no_next_action")).toBe(false);
   });
+});
 
+describe("buildDashboard: auto-derived summary", () => {
   it("reports auto-derived activity from the last day only", () => {
     const v = buildDashboard(
       snap({
@@ -222,16 +231,16 @@ describe("buildDashboard: attention", () => {
           ev({ event_type: "commit_pushed", source: "github", quantity: 0, occurred_at: "2026-09-28T13:00:00Z" }),
           ev({ event_type: "commit_pushed", source: "github", quantity: 0, occurred_at: "2026-09-20T13:00:00Z" }),
           ev({ event_type: "task_completed", source: "github", quantity: 0, occurred_at: "2026-09-28T13:30:00Z" }),
+          ev({ event_type: "task_completed", source: "manual", quantity: 0, occurred_at: "2026-09-28T13:30:00Z" }),
         ],
       }),
       NOW,
     );
-    expect(v.attention.find((a) => a.key === "auto")?.title).toBe("2 commits closed 1 task");
+    expect(v.ledger.autoSummary).toBe("2 commits closed 1 task");
   });
 
-  it("always ends with the budget projection", () => {
-    const v = buildDashboard(snap(), NOW);
-    expect(v.attention.at(-1)?.key).toBe("budget");
+  it("is null when nothing was auto-derived", () => {
+    expect(buildDashboard(snap(), NOW).ledger.autoSummary).toBeNull();
   });
 });
 
@@ -338,10 +347,11 @@ describe("demo snapshot", () => {
     expect(v.isDemo).toBe(true);
   });
 
-  it("shows ORACLE as the stalled, at-risk goal", () => {
+  it("shows ORACLE as at risk with no next action, near the top", () => {
     const v = buildDashboard(demoSnapshot(NOW), NOW);
     expect(v.goals.find((g) => g.id === "g-oracle")?.paceStatus).toBe("at_risk");
-    expect(v.attention[0].key).toBe("stalled:g-oracle");
+    expect(v.priority[0].key).toBe("goal:g-oracle");
+    expect(v.priority).toHaveLength(6);
   });
 });
 
@@ -353,5 +363,39 @@ describe("shortenTitle", () => {
   it("leaves short or verb-free titles alone", () => {
     expect(shortenTitle("ORACLE to beta")).toBe("ORACLE to beta");
     expect(shortenTitle("Get fit")).toBe("Get fit");
+  });
+});
+
+describe("buildDashboard: AI flag", () => {
+  it("defaults to AI off, like the flag", () => {
+    expect(buildDashboard(snap(), NOW).aiEnabled).toBe(false);
+  });
+  it("passes the server flag through", () => {
+    expect(buildDashboard(snap(), NOW, { aiEnabled: true }).aiEnabled).toBe(true);
+  });
+});
+
+describe("buildDashboard: reversals", () => {
+  it("drops a reversed pair from goal values, XP and the ledger day counts", () => {
+    const g = goal({ id: "a", title: "A", metric_type: "count", target_value: 10, unit: "sessions" });
+    const v = buildDashboard(
+      snap({
+        goals: [g],
+        events: [
+          ev({ id: 1, goal_id: "a", quantity: 3, xp: 10, occurred_at: "2026-09-28T14:00:00Z" }),
+          ev({ id: 2, goal_id: "a", quantity: 2, xp: 10, occurred_at: "2026-09-28T14:05:00Z" }),
+          ev({
+            id: 3, event_type: "reversal", source: "reversal", goal_id: "a", quantity: -3, xp: -10,
+            occurred_at: "2026-09-28T14:06:00Z", meta: { reverses_event_id: 1 },
+          }),
+        ],
+      }),
+      NOW,
+    );
+    expect(v.goals[0].current).toBe(2);
+    expect(v.score.totalXp).toBe(10);
+    expect(v.ledger.days.at(-1)?.count).toBe(1);
+    // The raw row count is still every row in the append-only ledger.
+    expect(v.ledger.total).toBe(3);
   });
 });

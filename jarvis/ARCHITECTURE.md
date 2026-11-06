@@ -96,7 +96,7 @@ JARVIS serves a portfolio reviewer and a daily user. These pull in different dir
 | TTS | macOS `say -v Daniel` | $0, Daniel is the UK English male system voice |
 | Wake word | openWakeWord or Porcupine | Local, $0 for personal use |
 
-**Total recurring infrastructure cost: $0.** Only OpenAI tokens cost money.
+**Total recurring infrastructure cost: $0 on free tiers.** Free tier is not free: Supabase pauses a free project after 7 days of inactivity, and cron does not run while it is paused. Only OpenAI tokens cost money, and only when `JARVIS_AI_ENABLED=true`.
 
 ---
 
@@ -357,16 +357,20 @@ pace_status        = delta > +0.10  → ahead
 
 `current_value` is itself a rollup: `SUM(quantity)` over activity_events filtered to the goal. Never a stored counter.
 
-**Daily score** (weights configurable in `profiles.prefs`):
+**Daily score** (weights configurable in `profiles.prefs.score_weights`):
 
-| Component | Weight |
-|---|---|
-| Priority task execution | 35% |
-| Goal progress today | 25% |
-| Habit consistency | 15% |
-| Schedule adherence | 10% |
-| Focus blocks completed | 10% |
-| Review check-in done | 5% |
+| Performance component | Weight | Measurable when |
+|---|---|---|
+| Priority task execution | 0.35 | A task was due today |
+| Goal progress today | 0.25 | An active goal has a deadline |
+| Habit consistency | 0.15 | A near-daily habit is active and it is not a rest day |
+| Schedule adherence | 0.10 | A calendar event was scheduled |
+| Focus blocks completed | 0.10 | A focus session was logged |
+
+- A component with nothing to measure is **null, never zero**. "Nothing was scheduled" must not read the same as "scheduled and missed".
+- Weight is redistributed only among measurable components.
+- Fewer than **two** measurable components shows **"Score unavailable"** with a coverage readout (N of 5), not a number.
+- **Review check-in is not part of the score.** It is a separate consistency indicator. (Changed November 2026: previously 5% of the score, which let a review-only day score 100 and an empty day score 0.)
 
 Rest days and deliberately rescheduled work do not reduce the score. A score that punishes legitimate planning is a score you will start ignoring.
 

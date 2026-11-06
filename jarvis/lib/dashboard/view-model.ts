@@ -10,25 +10,26 @@
  * to be true.
  */
 
-import { budgetConfig, budgetState, fmt, projectMonthly, type BudgetState } from "@/lib/ai/cost";
+import { budgetConfig, budgetState, projectMonthly, type BudgetState } from "@/lib/ai/cost";
 import { MODELS, type ModelTier } from "@/lib/ai/models";
-import { topTasksForToday } from "@/lib/engine/next-action";
+import { effectiveEvents } from "@/lib/engine/ledger";
+import { prioritizeActions, type PriorityAction } from "@/lib/engine/next-action";
 import {
   computeGoalProgress,
   currentValueFromEvents,
-  stalledGoals,
 } from "@/lib/engine/progress";
-import { computeDailyScore, computeStreak, levelFromXp } from "@/lib/engine/score";
+import { computeStreak, levelFromXp } from "@/lib/engine/score";
+import { dailyScoreFor } from "./daily-score";
 import { clamp, daysBetween, lastNLocalDays, localDateString } from "@/lib/engine/time";
-import type { Goal, GoalProgress, PaceStatus, Task } from "@/lib/engine/types";
+import type { Goal, GoalProgress, PaceStatus } from "@/lib/engine/types";
 import type { DashboardSnapshot, SnapshotEvent } from "./snapshot";
 import { clockTime, friendlyDate, pct, relativeHours, shortDate, trimNumber } from "./format";
 
 /** Sources that mean "JARVIS noticed this without being told". */
 export const AUTO_SOURCES = new Set(["github", "calendar", "gmail"]);
 
-/** A goal with no ledger activity for this many days is flagged as stalled. */
-export const STALL_DAYS = 14;
+/** Rows in the PRIORITY panel. */
+export const PRIORITY_ROWS = 6;
 
 export interface GoalCard {
   id: string;
@@ -56,20 +57,24 @@ export interface GoalCard {
   progress: GoalProgress;
 }
 
-export type AttentionSeverity = "critical" | "warning" | "due" | "auto" | "budget";
-
-export interface AttentionItem {
-  key: string;
-  severity: AttentionSeverity;
-  title: string;
-  detail: string;
-}
-
-export interface RankedItem {
-  id: string;
-  title: string;
-  detail: string;
-}
+export type PriorityRow =
+  | {
+      kind: "task";
+      key: string;
+      taskId: string;
+      title: string;
+      /** Reason chips, straight from scoreTask plus priority and estimate. */
+      chips: string[];
+      overdueP1: boolean;
+    }
+  | {
+      kind: "no_next_action";
+      key: string;
+      goalId: string;
+      title: string;
+      chips: string[];
+      paceStatus: PaceStatus;
+    };
 
 export interface DueTodayItem {
   id: string;
@@ -94,6 +99,8 @@ export interface DashboardView {
   nowIso: string;
   timeZone: string;
   isDemo: boolean;
+  /** JARVIS_AI_ENABLED. When false the UI says AI OFF instead of showing spend. */
+  aiEnabled: boolean;
   profile: {
     name: string;
     initial: string;
@@ -109,7 +116,10 @@ export interface DashboardView {
     jobs: number;
   };
   score: {
-    today: number;
+    /** Null means "Score unavailable": fewer than two components were measurable. */
+    today: number | null;
+    coverage: { measured: number; of: number; components: string[] };
+    reviewDone: boolean;
     level: number;
     totalXp: number;
     streak: number;
@@ -134,9 +144,8 @@ export interface DashboardView {
   };
   goals: GoalCard[];
   onPace: { count: number; judgeable: number; behind: number; atRisk: number };
-  attention: AttentionItem[];
-  criticalCount: number;
-  ranked: RankedItem[];
+  priority: PriorityRow[];
+  overdueP1Count: number;
   dueToday: DueTodayItem[];
   signals: {
     habitConsistency: number | null;
@@ -147,6 +156,8 @@ export interface DashboardView {
     thisWeek: number;
     /** Share of the last 14 days' events that arrived without manual logging. */
     autoDerivedShare: number | null;
+    /** "4 commits closed 2 tasks", from auto-derived events in the last 24 hours. */
+    autoSummary: string | null;
   };
   routing: {
     rows: RoutingRow[];
@@ -157,10 +168,19 @@ export interface DashboardView {
   milestone: { label: string; dueLabel: string | null } | null;
 }
 
-export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardView {
+export interface BuildOptions {
+  /** Server-side JARVIS_AI_ENABLED. Defaults to off, like the flag itself. */
+  aiEnabled?: boolean;
+}
+
+export function buildDashboard(snap: DashboardSnapshot, now: Date, opts: BuildOptions = {}): DashboardView {
   const tz = snap.profile.timezone || "America/New_York";
   const today = localDateString(now, tz);
   const cfg = budgetConfig();
+
+  // Reversed pairs (an event plus its compensating reversal) are dropped before
+  // anything is counted. Raw row counts below still use snap.events.
+  const events = effectiveEvents(snap.events);
 
   // ---------------- goals, from the ledger ----------------
   const activeGoals = snap.goals
@@ -173,7 +193,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
   const colorIndex = new Map(colorOrder.map((g, idx) => [g.id, idx]));
 
   const goalCards: GoalCard[] = activeGoals.map((g) => {
-    const current = currentValueFromEvents(g, snap.events);
+    const current = currentValueFromEvents(g, events);
     const progress = computeGoalProgress({ ...g, current_value: current }, now, tz);
     return toGoalCard(g, current, progress, colorIndex.get(g.id) ?? 0);
   });
@@ -193,7 +213,6 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
 
   // ---------------- events by local day ----------------
   const eventDay = (e: SnapshotEvent) => localDateString(new Date(e.occurred_at), tz);
-  const eventsToday = snap.events.filter((e) => eventDay(e) === today);
 
   const last14 = lastNLocalDays(now, tz, 14);
   const last14Set = new Set(last14);
@@ -204,7 +223,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
   let thisWeek = 0;
   let habitHits = 0;
 
-  for (const e of snap.events) {
+  for (const e of events) {
     const d = eventDay(e);
     if (!last14Set.has(d)) continue;
     countsByDay.set(d, (countsByDay.get(d) ?? 0) + 1);
@@ -215,11 +234,6 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
   }
 
   // ---------------- tasks ----------------
-  const openTasks = snap.tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
-  const completedTodayIds = new Set(
-    eventsToday.filter((e) => e.event_type === "task_completed" && e.task_id).map((e) => e.task_id),
-  );
-  const tasksCompletedToday = snap.tasks.filter((t) => completedTodayIds.has(t.id));
   const dueTodayTasks = snap.tasks.filter(
     (t) => t.status !== "cancelled" && t.due_at && localDateString(new Date(t.due_at), tz) === today,
   );
@@ -227,18 +241,8 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
 
   // ---------------- score ----------------
   const activeHabits = snap.habits.filter((h) => h.active);
-  const daily = computeDailyScore({
-    tasksDueToday: dueTodayTasks,
-    tasksCompletedToday,
-    eventsToday,
-    activeHabits,
-    // Calendar sync is Milestone 2. With nothing scheduled the component drops
-    // out and its weight is redistributed, rather than scoring zero.
-    scheduledCount: 0,
-    attendedCount: 0,
-    reviewDone: eventsToday.some((e) => e.event_type === "review_completed"),
-  });
-  const totalXp = snap.events.reduce((s, e) => s + (Number(e.xp) || 0), 0);
+  const daily = dailyScoreFor(snap, events, now, tz);
+  const totalXp = events.reduce((s, e) => s + (Number(e.xp) || 0), 0);
   const level = levelFromXp(totalXp);
 
   // ---------------- budget ----------------
@@ -255,31 +259,22 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
     usedFraction: cfg.monthlyCents > 0 ? clamp(spentCents / cfg.monthlyCents, 0, 1) : 0,
   };
 
-  // ---------------- attention ----------------
-  const attention = buildAttention({
-    snap,
-    goalCards,
-    openTasks,
+  // ---------------- priority ----------------
+  const actions = prioritizeActions(
+    snap.tasks,
+    goalCards.map((c) => c.progress),
     now,
-    tz,
-    budget,
-    eventsLastDay: snap.events.filter(
-      (e) => now.getTime() - new Date(e.occurred_at).getTime() <= 86_400_000,
-    ),
-  });
+    PRIORITY_ROWS,
+    { progressByGoal },
+  );
+  const priority = actions.map((a) => toPriorityRow(a, goalCards));
 
-  // ---------------- ranked ----------------
-  const ranked = topTasksForToday(openTasks, now, 3, { progressByGoal }).map((r) => ({
-    id: r.task.id,
-    title: r.task.title,
-    detail: [
-      `P${r.task.priority}`,
-      ...r.reasons.filter((x) => !x.startsWith("priority")).slice(0, 2),
-      r.task.estimate_minutes != null ? `${r.task.estimate_minutes} min` : null,
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  }));
+  // ---------------- auto-derived, last 24 hours ----------------
+  const autoSummary = summarizeAuto(
+    events.filter(
+      (e) => AUTO_SOURCES.has(e.source) && now.getTime() - new Date(e.occurred_at).getTime() <= 86_400_000,
+    ),
+  );
 
   // ---------------- due today ----------------
   const dueToday: DueTodayItem[] = [...dueTodayTasks]
@@ -315,6 +310,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
     nowIso: now.toISOString(),
     timeZone: tz,
     isDemo: snap.isDemo,
+    aiEnabled: opts.aiEnabled ?? false,
     profile: {
       name,
       initial: name.charAt(0).toUpperCase(),
@@ -331,9 +327,11 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
     },
     score: {
       today: daily.score,
+      coverage: daily.coverage,
+      reviewDone: daily.consistency.reviewDone,
       level: level.level,
       totalXp,
-      streak: computeStreak(snap.events, now, tz),
+      streak: computeStreak(events, now, tz),
       levelProgress: level.nextAt > 0 ? level.intoLevel / level.nextAt : 0,
     },
     budget,
@@ -349,9 +347,8 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
     },
     goals: goalCards,
     onPace,
-    attention,
-    criticalCount: attention.filter((a) => a.severity === "critical").length,
-    ranked,
+    priority,
+    overdueP1Count: actions.filter((a) => a.kind === "task" && a.overdueP1).length,
     dueToday,
     signals: { habitConsistency },
     ledger: {
@@ -359,6 +356,7 @@ export function buildDashboard(snap: DashboardSnapshot, now: Date): DashboardVie
       total: snap.events.length,
       thisWeek,
       autoDerivedShare: recentTotal > 0 ? recentAuto / recentTotal : null,
+      autoSummary,
     },
     routing,
     milestone,
@@ -403,126 +401,46 @@ export function shortenTitle(title: string): string {
   return title;
 }
 
-interface AttentionInput {
-  snap: DashboardSnapshot;
-  goalCards: GoalCard[];
-  openTasks: Task[];
-  now: Date;
-  tz: string;
-  budget: DashboardView["budget"];
-  eventsLastDay: SnapshotEvent[];
+function toPriorityRow(a: PriorityAction, cards: GoalCard[]): PriorityRow {
+  if (a.kind === "no_next_action") {
+    const card = cards.find((c) => c.id === a.goal.goal_id);
+    const name = card?.shortTitle ?? a.goal.title;
+    return {
+      kind: "no_next_action",
+      key: `goal:${a.goal.goal_id}`,
+      goalId: a.goal.goal_id,
+      title: `${name} has no next action`,
+      chips: [
+        a.goal.paceStatus === "at_risk" ? "goal at risk" : "goal behind pace",
+        `${pct(a.goal.percentComplete)} vs ${pct(a.goal.expectedProgress)} expected`,
+      ],
+      paceStatus: a.goal.paceStatus,
+    };
+  }
+
+  const t = a.ranked.task;
+  return {
+    kind: "task",
+    key: `task:${t.id}`,
+    taskId: t.id,
+    title: t.title,
+    chips: [
+      `P${t.priority}`,
+      // scoreTask already says "priority 1"; the P chip covers it.
+      ...a.ranked.reasons.filter((r) => !r.startsWith("priority")),
+      ...(t.estimate_minutes != null ? [`${t.estimate_minutes} min`] : []),
+    ],
+    overdueP1: a.overdueP1,
+  };
 }
 
-/**
- * The attention list, most urgent first. Every item is a deterministic rule
- * over the snapshot. A model never decides what needs attention.
- */
-export function buildAttention(i: AttentionInput): AttentionItem[] {
-  const out: AttentionItem[] = [];
-  const cardById = new Map(i.goalCards.map((c) => [c.id, c]));
-
-  // 1. Stalled goals. Quietly stalled work is the failure mode that hurts most.
-  const stalled = stalledGoals(
-    i.snap.goals.filter((g) => cardById.has(g.id)),
-    i.snap.events,
-    i.now,
-    STALL_DAYS,
-  );
-  const stalledIds = new Set<string>();
-  for (const s of stalled) {
-    const c = cardById.get(s.goal.id)!;
-    // A goal that started inside the stall window has not had time to stall.
-    if (c.progress.daysElapsed < STALL_DAYS) continue;
-    stalledIds.add(c.id);
-    out.push({
-      key: `stalled:${c.id}`,
-      severity: "critical",
-      title:
-        s.daysSinceActivity == null
-          ? `${c.shortTitle} has no ledger activity yet`
-          : `${c.shortTitle} has no ledger activity in ${s.daysSinceActivity} days`,
-      detail: paceDetail(c),
-    });
-  }
-
-  // 2. Goals behind pace that are still moving.
-  const behind = i.goalCards
-    .filter(
-      (c) =>
-        !stalledIds.has(c.id) &&
-        (c.paceStatus === "at_risk" || c.paceStatus === "behind"),
-    )
-    .sort((a, b) => (a.paceDelta ?? 0) - (b.paceDelta ?? 0));
-
-  for (const c of behind) {
-    const rate = c.progress.requiredDailyRate;
-    const needs =
-      c.metricType === "count" && rate != null && Number.isFinite(rate) && c.target != null
-        ? `${c.shortTitle} at ${trimNumber(c.current)} of ${trimNumber(c.target)}, needs ${trimNumber(rate * 7)} a week`
-        : `${c.shortTitle} is ${pct(c.percentComplete)} done, expected ${pct(c.expectedProgress)}`;
-    out.push({
-      key: `behind:${c.id}`,
-      severity: c.paceStatus === "at_risk" ? "critical" : "warning",
-      title: needs,
-      detail:
-        c.daysRemaining != null && c.dueLabel
-          ? `${c.paceStatus === "at_risk" ? "AT RISK" : "BEHIND"} · ${c.daysRemaining} days to ${c.dueLabel}`
-          : paceDetail(c),
-    });
-  }
-
-  // 3. Overdue and due within 24 hours, priority 1 and 2 only.
-  const soon = i.openTasks
-    .filter((t) => t.due_at && t.priority <= 2 && t.status !== "blocked")
-    .map((t) => ({ t, hours: (new Date(t.due_at!).getTime() - i.now.getTime()) / 3_600_000 }))
-    .filter((x) => x.hours <= 24)
-    .sort((a, b) => a.hours - b.hours)
-    .slice(0, 2);
-
-  for (const { t, hours } of soon) {
-    const goal = t.goal_id ? cardById.get(t.goal_id) : undefined;
-    const tag = goal ? goal.shortTitle.toUpperCase() : "TASK";
-    const est = t.estimate_minutes != null ? ` · est. ${t.estimate_minutes} min` : "";
-    out.push({
-      key: `due:${t.id}`,
-      severity: hours < 0 ? "critical" : "due",
-      title:
-        hours < 0
-          ? `${t.title} is overdue`
-          : `${t.title} due in ${Math.max(1, Math.round(hours))} hours`,
-      detail: `${tag}${est}`,
-    });
-  }
-
-  // 4. What auto-derivation did in the last 24 hours.
-  const auto = i.eventsLastDay.filter((e) => AUTO_SOURCES.has(e.source));
-  if (auto.length > 0) {
-    const commits = auto.filter((e) => e.event_type === "commit_pushed").length;
-    const closed = auto.filter((e) => e.event_type === "task_completed").length;
-    const head = commits > 0 ? `${commits} commit${commits === 1 ? "" : "s"}` : `${auto.length} events`;
-    out.push({
-      key: "auto",
-      severity: "auto",
-      title: closed > 0 ? `${head} closed ${closed} task${closed === 1 ? "" : "s"}` : `${head} logged for you`,
-      detail: "AUTO-DERIVED · no logging needed",
-    });
-  }
-
-  // 5. Budget projection, always present. It is the one number that must never surprise.
-  out.push({
-    key: "budget",
-    severity: i.budget.state === "ok" ? "budget" : "warning",
-    title: `Spend projects to ${fmt(i.budget.projectedCents)} this month`,
-    detail: `BUDGET · ${fmt(i.budget.headroomCents)} headroom`,
-  });
-
-  const rank: Record<AttentionSeverity, number> = { critical: 0, warning: 1, due: 2, auto: 3, budget: 4 };
-  return out.sort((a, b) => rank[a.severity] - rank[b.severity]);
-}
-
-function paceDetail(c: GoalCard): string {
-  const status = c.paceStatus === "at_risk" ? "AT RISK" : c.paceStatus.replace("_", " ").toUpperCase();
-  return `${status} · ${pct(c.percentComplete)} vs ${pct(c.expectedProgress)} expected`;
+/** One line describing what auto-derivation logged, or null if nothing did. */
+export function summarizeAuto(events: SnapshotEvent[]): string | null {
+  if (events.length === 0) return null;
+  const commits = events.filter((e) => e.event_type === "commit_pushed").length;
+  const closed = events.filter((e) => e.event_type === "task_completed").length;
+  const head = commits > 0 ? `${commits} commit${commits === 1 ? "" : "s"}` : `${events.length} events`;
+  return closed > 0 ? `${head} closed ${closed} task${closed === 1 ? "" : "s"}` : `${head} logged for you`;
 }
 
 const ROLE: Record<ModelTier, string> = {

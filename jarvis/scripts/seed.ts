@@ -12,6 +12,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { assertSameKeys, withDefaults } from "./lib/batch";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -58,7 +59,6 @@ async function main() {
         habits: 0.15,
         schedule_adherence: 0.1,
         focus_blocks: 0.1,
-        review_checkin: 0.05,
       },
     },
   });
@@ -71,6 +71,7 @@ async function main() {
     { name: "Coding", color: "#10b981", sort_order: 3 },
     { name: "Fitness", color: "#ef4444", sort_order: 4 },
   ].map((d) => ({ ...d, user_id: userId }));
+  assertSameKeys("domains", domainRows);
 
   const { data: domains, error: dErr } = await db
     .from("domains")
@@ -146,6 +147,7 @@ async function main() {
       priority: 3,
     },
   ].map((g) => ({ ...g, user_id: userId, source: SEED }));
+  assertSameKeys("goals", goalRows);
 
   const { data: goals, error: gErr } = await db.from("goals").insert(goalRows).select();
   if (gErr) throw gErr;
@@ -171,8 +173,10 @@ async function main() {
 
     { goal_id: G["Train four times a week"], title: "30 sessions logged", due_date: daysFromNow(35), target_value: 30, sort_order: 0, status: "active" },
   ].map((m) => ({ ...m, source: SEED }));
+  // status is NOT NULL with a default; only some rows set it. See scripts/lib/batch.ts.
+  const milestoneInsert = withDefaults("milestones", { status: "pending", target_value: null, due_date: null }, milestoneRows);
 
-  const { data: milestones, error: mErr } = await db.from("milestones").insert(milestoneRows).select();
+  const { data: milestones, error: mErr } = await db.from("milestones").insert(milestoneInsert).select();
   if (mErr) throw mErr;
   const M = Object.fromEntries(milestones!.map((m) => [m.title, m.id])) as Record<string, string>;
   console.log(`  ${milestones!.length} milestones`);
@@ -181,12 +185,12 @@ async function main() {
   const { data: projects, error: pErr } = await db
     .from("projects")
     .insert(
-      [
+      withDefaults("projects", { repo_full_name: null }, [
         { name: "JARVIS", kind: "software", goal_id: G["Ship JARVIS V1"], repo_full_name: "joshwa/jarvis", stage: "building" },
         { name: "ORACLE", kind: "business", goal_id: G["ORACLE trading dashboard to beta"], repo_full_name: "joshwa/oracle", stage: "building" },
         { name: "Portfolio site", kind: "software", goal_id: G["Land a SWE or data role"], stage: "planning" },
         { name: "DATA 101", kind: "school", goal_id: G["Finish fall semester at 4.0"], stage: "in_progress" },
-      ].map((p) => ({ ...p, user_id: userId, source: SEED })),
+      ].map((p) => ({ ...p, user_id: userId, source: SEED }))),
     )
     .select();
   if (pErr) throw pErr;
@@ -197,12 +201,12 @@ async function main() {
   const { data: habits, error: hErr } = await db
     .from("habits")
     .insert(
-      [
+      withDefaults("habits", {}, [
         { name: "Lift or train", target_per_week: 4, domain_id: D.Fitness },
         { name: "LeetCode problem", target_per_week: 5, domain_id: D.Career },
         { name: "Ship a commit", target_per_week: 6, domain_id: D.Coding },
         { name: "Evening review", target_per_week: 7, domain_id: D.Career },
-      ].map((h) => ({ ...h, user_id: userId, source: SEED })),
+      ].map((h) => ({ ...h, user_id: userId, source: SEED }))),
     )
     .select();
   if (hErr) throw hErr;
@@ -239,8 +243,14 @@ async function main() {
     // Fitness
     { title: "Upper body session", goal_id: G["Train four times a week"], priority: 3, due_at: hoursAgo(-6), estimate_minutes: 75 },
   ].map((t) => ({ ...t, user_id: userId, source: SEED }));
+  // status and scale are NOT NULL with defaults; only some rows set them. See scripts/lib/batch.ts.
+  const taskInsert = withDefaults(
+    "tasks",
+    { status: "todo", scale: "micro", notes: null, due_at: null, completed_at: null, milestone_id: null, project_id: null },
+    taskRows,
+  );
 
-  const { data: tasks, error: tErr } = await db.from("tasks").insert(taskRows).select();
+  const { data: tasks, error: tErr } = await db.from("tasks").insert(taskInsert).select();
   if (tErr) throw tErr;
   console.log(`  ${tasks!.length} tasks`);
 
@@ -379,7 +389,7 @@ async function main() {
 
   const { error: eErr, count } = await db
     .from("activity_events")
-    .insert(events, { count: "exact" });
+    .insert(withDefaults("activity_events", { goal_id: null, milestone_id: null, project_id: null, task_id: null, meta: {} }, events), { count: "exact" });
   if (eErr) throw eErr;
   console.log(`  ${count ?? events.length} activity events`);
 
@@ -391,8 +401,8 @@ async function main() {
   console.log(`  reconciled ${touched} goals`);
 
   // ---------- memories ----------
-  await db.from("memories").insert(
-    [
+  const { error: memErr } = await db.from("memories").insert(
+    withDefaults("memories", { entity_name: null }, [
       { kind: "profile", content: "Senior at Rutgers University New Brunswick, B.S. Information Technology and Data Science, graduating December 2026.", importance: 5 },
       { kind: "profile", content: "Runs Swish Labs. ORACLE is the flagship build.", importance: 4 },
       { kind: "preference", content: "Prefers plain conversational prose. No em dashes or en dashes. Clean scannable formatting with key results visually distinct.", importance: 5 },
@@ -402,8 +412,9 @@ async function main() {
       { kind: "entity", entity_name: "JPMorgan Chase", content: "Primary target employer for software engineering and data analytics roles.", importance: 4 },
       { kind: "entity", entity_name: "Wells Fargo", content: "Secondary target employer.", importance: 4 },
       { kind: "goal", content: "Hard AI budget is $10 per month. Cost efficiency is an architectural requirement, not a preference.", importance: 5 },
-    ].map((m) => ({ ...m, user_id: userId, source: SEED })),
+    ].map((m) => ({ ...m, user_id: userId, source: SEED }))),
   );
+  if (memErr) throw memErr;
 
   console.log("\nDone. All rows marked source='seed'.");
   console.log("Purge before real use: npm run seed:purge\n");

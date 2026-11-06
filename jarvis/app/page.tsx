@@ -1,18 +1,20 @@
 import { redirect } from "next/navigation";
+import { FocusButton } from "@/components/dashboard/FocusButton";
 import { Footer } from "@/components/dashboard/Footer";
+import { PanelBoundary } from "@/components/dashboard/PanelBoundary";
 import {
   ActiveGoals,
-  Attention,
   GoalOrbit,
   LedgerPanel,
   ModelRouting,
   QuickCommands,
+  Priority,
   Signals,
   SystemOverview,
-  TodayRanked,
 } from "@/components/dashboard/panels";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { aiEnabled } from "@/lib/ai/flags";
 import { buildDashboard } from "@/lib/dashboard/view-model";
 import type { DashboardSnapshot } from "@/lib/dashboard/snapshot";
 import { loadDashboardSnapshot } from "@/lib/db/dashboard";
@@ -39,7 +41,7 @@ export default async function CommandCenter() {
     snapshot = demoSnapshot(now);
   }
 
-  const view = buildDashboard(snapshot, now);
+  const view = buildDashboard(snapshot, now, { aiEnabled: aiEnabled() });
 
   return (
     <div className="shell">
@@ -47,15 +49,30 @@ export default async function CommandCenter() {
       <div className="main">
         <TopBar view={view} />
         <main className="grid">
-          <SystemOverview view={view} />
-          <GoalOrbit view={view} />
-          <Attention view={view} />
-          <ActiveGoals view={view} />
-          <TodayRanked view={view} />
-          <QuickCommands />
-          <Signals view={view} />
-          <LedgerPanel view={view} />
-          <ModelRouting view={view} />
+          <PanelBoundary name="System overview" span="span-3">
+            <SystemOverview view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Goal orbit" span="span-6 orbit-panel">
+            <GoalOrbit view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Quick commands" span="span-3">
+            <QuickCommands focusSlot={<FocusButton variant="cmd" />} />
+          </PanelBoundary>
+          <PanelBoundary name="Active goals" span="span-5">
+            <ActiveGoals view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Priority" span="span-7">
+            <Priority view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Signals" span="span-4">
+            <Signals view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Ledger" span="span-4">
+            <LedgerPanel view={view} />
+          </PanelBoundary>
+          <PanelBoundary name="Model routing" span="span-4">
+            <ModelRouting view={view} />
+          </PanelBoundary>
         </main>
         <Footer view={view} />
       </div>

@@ -75,7 +75,7 @@ export function demoSnapshot(now: Date): DashboardSnapshot {
     task({ id: "t-lecture", title: "DATA 101 lecture notes", goal_id: "g-school", status: "done", priority: 3, due_at: hoursAgo(3), estimate_minutes: 30 }),
     task({ id: "t-deep", title: "Deep work · auth flow", goal_id: "g-jarvis", priority: 3, due_at: hoursAgo(-2), estimate_minutes: 120 }),
     task({ id: "t-lift", title: "Upper body session", goal_id: "g-train", priority: 3, due_at: hoursAgo(-5.5), estimate_minutes: 75 }),
-    task({ id: "t-feed", title: "Build the options chain ingestion job", goal_id: "g-oracle", status: "blocked", priority: 2, due_at: hoursAgo(-120), estimate_minutes: 240 }),
+    task({ id: "t-feed", title: "Build the options chain ingestion job", goal_id: "g-oracle", status: "cancelled", priority: 2, due_at: hoursAgo(-120), estimate_minutes: 240 }),
   ];
 
   const habits: Habit[] = [
