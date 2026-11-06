@@ -103,3 +103,13 @@ describe("task matching edges", () => {
     expect(matchTask("build the auth flow", dupes).kind).toBe("picker");
   });
 });
+
+describe("goalNouns", () => {
+  it("takes every unit word and the identifying title words, never time words or numbers", async () => {
+    const { goalNouns } = await import("@/lib/capture/count");
+    const g = COUNT_GOALS.find((c) => c.goal.id === "affirm")!.goal;
+    expect([...goalNouns(g)].sort()).toEqual(["affirmation", "manifestation", "said", "time"]);
+    const train = COUNT_GOALS.find((c) => c.goal.id === "train")!.goal;
+    expect([...goalNouns(train)].sort()).toEqual(["session", "train"]);
+  });
+});

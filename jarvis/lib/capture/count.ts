@@ -9,12 +9,12 @@
  *   - an ordinal or a time of day ("3rd", "5pm")
  * "a" and "an" are not quantities: an explicit number is required.
  *
- * The goal is matched on its unit noun ("applications", "sessions"), with the
- * quantity within three words before it.
+ * The goal is matched on a noun from its unit or its title ("3 applications",
+ * "did 3 affirmations"), with the quantity within three words before it.
  */
 
 import type { Goal } from "@/lib/engine/types";
-import { stem } from "./text";
+import { normalize, stem, STOPWORDS } from "./text";
 
 const NUMBER_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
@@ -49,16 +49,39 @@ export interface CountMatch {
   quantity: number;
 }
 
-/** The unit's identifying noun: the last word, stemmed. "job applications" -> "application". */
-function unitStem(unit: string | null): string | null {
-  if (!unit) return null;
-  const words = unit.toLowerCase().match(/[a-z]+/g);
-  return words && words.length ? stem(words[words.length - 1]) : null;
+/** Time words in a title describe a schedule, not the thing being counted. */
+const TIME_WORDS = new Set(["time", "day", "week", "month", "year", "hour", "minute", "daily", "weekly", "monthly"]);
+
+/**
+ * The nouns a capture may use for a goal, stemmed.
+ *
+ * Unit words: every word of the unit, so "times said" answers to "3 times"
+ * and "3 times said". A unit is explicit, so it is trusted as is.
+ *
+ * Title words: what people actually say. "Manifestation + Affirmations" with
+ * unit "times said" must answer to "did 3 affirmations". Stopwords, words with
+ * digits ("4x"), words under 3 letters and time words ("Train 4x a week" must
+ * not claim "3 weeks") are left out. A title word can still overreach
+ * ("3 data points" for "Land a SWE or data role"); that is acceptable because
+ * a count capture never writes without the confirmation card.
+ */
+export function goalNouns(goal: Goal): Set<string> {
+  const out = new Set<string>();
+  for (const w of (goal.unit ?? "").toLowerCase().match(/[a-z]+/g) ?? []) {
+    if (!STOPWORDS.has(w)) out.add(stem(w));
+  }
+  for (const w of normalize(goal.title).split(" ")) {
+    if (!w || w.length < 3 || /\d/.test(w) || STOPWORDS.has(w)) continue;
+    const s = stem(w);
+    if (!TIME_WORDS.has(s)) out.add(s);
+  }
+  return out;
 }
 
 /**
- * Every active count goal the text could be logging against. More than one
- * result means a picker; none means this is not a count capture.
+ * Every active count goal the text could be logging against: a quantity
+ * within three words before one of the goal's nouns. More than one result
+ * means a picker; none means this is not a count capture.
  */
 export function matchCountGoals(text: string, goals: Goal[]): CountMatch[] {
   const tokens = wordTokens(text);
@@ -66,11 +89,11 @@ export function matchCountGoals(text: string, goals: Goal[]): CountMatch[] {
 
   for (const goal of goals) {
     if (goal.status !== "active" || goal.metric_type !== "count") continue;
-    const unit = unitStem(goal.unit);
-    if (!unit) continue;
+    const nouns = goalNouns(goal);
+    if (nouns.size === 0) continue;
 
     for (let i = 0; i < tokens.length; i++) {
-      if (stem(tokens[i]) !== unit) continue;
+      if (!nouns.has(stem(tokens[i]))) continue;
       let quantity: number | null = null;
       for (let j = i - 1; j >= Math.max(0, i - MAX_GAP); j--) {
         quantity = quantityAt(tokens, j);

@@ -76,7 +76,7 @@ export function GoalFormView({
             </Field>
           )}
           {(metric === "count" || metric === "value") && (
-            <Field label="Unit" name="unit" error={e.unit} hint={metric === "count" ? "Capture matches on this word: \"3 applications\"" : undefined}>
+            <Field label="Unit" name="unit" error={e.unit} hint={metric === "count" ? "Capture matches this word or a word from the title: \"3 applications\"" : undefined}>
               <input id="unit" name="unit" className="field" placeholder="applications" defaultValue={defaults.unit ?? ""} />
             </Field>
           )}

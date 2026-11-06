@@ -35,6 +35,11 @@ export const COUNT_GOALS: { goal: Goal; current: number }[] = [
   { goal: goal("career", "Land a SWE or data role", "applications", 60), current: 11 },
   { goal: goal("train", "Train 4x a week", "sessions", 56), current: 11 },
   { goal: goal("climb", "Climb 20 sessions", "sessions", 20), current: 4 },
+  // Nouns from the title, not the unit: what people actually say.
+  { goal: goal("affirm", "Manifestation + Affirmations", "times said", 100), current: 7 },
+  { goal: goal("books", "Read 12 books", "finished", 12), current: 2 },
+  { goal: goal("club", "Book club", "meetings", 10), current: 1 },
+  { goal: goal("meditate", "Meditation habit", "sessions", 60), current: 9 },
   // Not count goals: never matched for quantities.
   { goal: goal("jarvis", "Ship JARVIS V1", "%", 100, { metric_type: "percent" }), current: 24 },
 ];
@@ -118,9 +123,10 @@ export const CAPTURE_CASES: { text: string; expect: Expected; why: string }[] = 
       options: [
         { goalId: "train", quantity: 2 },
         { goalId: "climb", quantity: 2 },
+        { goalId: "meditate", quantity: 2 },
       ],
     },
-    why: "Two active count goals share the unit: picker. The date is not a quantity.",
+    why: "Three active count goals share the unit 'sessions': picker. The date is not a quantity.",
   },
   {
     text: "applications due by 5",
@@ -131,6 +137,48 @@ export const CAPTURE_CASES: { text: string; expect: Expected; why: string }[] = 
     text: "applied to 4 jobs",
     expect: { kind: "no_match" },
     why: "'jobs' is not the goal's unit noun. Matching on the unit is deliberate; synonyms would guess.",
+  },
+  // ---- the spoken noun comes from the goal TITLE, not its unit ----
+  {
+    text: "did 3 affirmations",
+    expect: { kind: "confirm_count", options: [{ goalId: "affirm", quantity: 3 }] },
+    why: "Found in live acceptance. The unit is 'times said'; 'affirmations' is in the title and is the natural word.",
+  },
+  {
+    text: "said my affirmations 5 times",
+    expect: { kind: "confirm_count", options: [{ goalId: "affirm", quantity: 5 }] },
+    why: "Every unit word counts, not only the last: '5 times' matches the unit 'times said'.",
+  },
+  {
+    text: "did 5 times said",
+    expect: { kind: "confirm_count", options: [{ goalId: "affirm", quantity: 5 }] },
+    why: "The literal unit still works.",
+  },
+  {
+    text: "finished two meditations",
+    expect: { kind: "confirm_count", options: [{ goalId: "meditate", quantity: 2 }] },
+    why: "Title noun 'meditation'. The unit 'sessions' is shared with two other goals, and they must not be offered.",
+  },
+  {
+    text: "read 2 books this week",
+    expect: {
+      kind: "confirm_count",
+      options: [
+        { goalId: "books", quantity: 2 },
+        { goalId: "club", quantity: 2 },
+      ],
+    },
+    why: "'book' is in two goal titles: picker, never a guess.",
+  },
+  {
+    text: "took 3 weeks off",
+    expect: { kind: "no_match" },
+    why: "Time words in a title ('Train 4x a week') are a schedule, not the thing counted.",
+  },
+  {
+    text: "logged 3 data points",
+    expect: { kind: "confirm_count", options: [{ goalId: "career", quantity: 3 }] },
+    why: "Known overreach of title matching ('data' is in 'Land a SWE or data role'). Acceptable only because a count never writes without the confirmation card, where Cancel is one click.",
   },
   {
     text: "done",
