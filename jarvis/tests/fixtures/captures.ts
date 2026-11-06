@@ -37,7 +37,10 @@ export const COUNT_GOALS: { goal: Goal; current: number }[] = [
   { goal: goal("climb", "Climb 20 sessions", "sessions", 20), current: 4 },
   // Nouns from the title, not the unit: what people actually say.
   { goal: goal("affirm", "Manifestation + Affirmations", "times said", 100), current: 7 },
-  { goal: goal("books", "Read 12 books", "finished", 12), current: 2 },
+  // Mid-title noun on purpose: "books" is not the last word. Title matching
+  // stays broad (decided Nov 6): confirm-first is the safety net, and a
+  // last-word-only rule would miss this and make capture look broken.
+  { goal: goal("books", "Read 12 books this year", "finished", 12), current: 2 },
   { goal: goal("club", "Book club", "meetings", 10), current: 1 },
   { goal: goal("meditate", "Meditation habit", "sessions", 60), current: 9 },
   // Not count goals: never matched for quantities.
@@ -168,7 +171,7 @@ export const CAPTURE_CASES: { text: string; expect: Expected; why: string }[] = 
         { goalId: "club", quantity: 2 },
       ],
     },
-    why: "'book' is in two goal titles: picker, never a guess.",
+    why: "'book' is in two goal titles: picker, never a guess. 'books' is mid-title in one of them, so a last-word rule would fail this.",
   },
   {
     text: "took 3 weeks off",
