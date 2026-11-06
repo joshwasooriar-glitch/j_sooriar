@@ -57,10 +57,29 @@ The app was a production build (`next build`, `next start`) with
    so the user landed back on the login page. Fixed in `lib/http/origin.ts`,
    which now builds the redirect from the host the browser sent.
 
-## Still required before merging to `main`: the hosted project
+## Run 2: hosted Supabase project, November 6, 2026
 
-Run 1 used Supabase locally, not your hosted project. Before merging, repeat
-the steps against the hosted project:
+**Result: all 10 steps passed.** Run by Joshwa against the linked hosted
+project (all migrations applied, real auth, seeded), with evidence taken from
+the database:
+
+- `task_completed` written on completion.
+- Undo wrote the compensating row with xp -10, and the task status was
+  restored to `todo`.
+- `goal_progress` with quantity 3 after the confirmed count capture.
+- One `focus_session` written on Stop.
+- 0 model calls (`JARVIS_AI_ENABLED` off).
+- Five completions were five distinct tasks, with no duplicate rows.
+
+Two bugs found while setting up the hosted project, both fixed before this run:
+the seed's batch inserts sent NULL over NOT NULL column defaults, and `npm run
+seed` did not load `.env.local`. One more was found during the run itself: count
+capture matched only the goal's unit ("did 3 affirmations" missed a goal whose
+unit was "times said"). It now also matches title words.
+
+## Repeating the hosted run
+
+To repeat it against a hosted project:
 
 1. Apply migrations: `npx supabase link --project-ref <ref>` then `npx supabase db push`.
 2. In Supabase Auth settings, add your deployed URL (or `http://localhost:3000`)

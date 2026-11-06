@@ -67,7 +67,7 @@ Milestone 1 in progress. See `ROADMAP.md`.
 | Capture with Undo, count confirmation | Built, deterministic, $0 of LLM spend |
 | `/api/chat` | Built; answers from the engine with AI off |
 | Local real-service acceptance | **10 of 10 steps passed**, see `docs/ACCEPTANCE.md` |
-| Hosted-project acceptance | **Not run yet.** Required before merging to `main` |
+| Hosted-project acceptance | **10 of 10 steps passed** (November 6), see `docs/ACCEPTANCE.md` |
 
 ---
 
