@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GoalFormView } from "@/components/forms/GoalFormView";
+import { GoalStatusForms } from "@/components/goals/GoalStatusForms";
 import { MilestoneFormView } from "@/components/forms/MilestoneFormView";
 import { PageShell } from "@/components/shell/PageShell";
 import { PaceChip, ProgressBar, TaskStatus } from "@/components/shell/bits";
@@ -41,13 +42,7 @@ export default async function GoalPage({ params }: { params: Promise<{ id: strin
       current="/goals"
       isDemo={!session}
       actions={
-        <form action={setGoalStatusAction} className="status-actions">
-          <input type="hidden" name="id" value={goal.id} />
-          {goal.status !== "active" && <button className="btn-add" name="status" value="active" disabled={!session}>Reactivate</button>}
-          {goal.status === "active" && <button className="link-btn" name="status" value="paused" disabled={!session}>Pause</button>}
-          {goal.status !== "completed" && <button className="link-btn" name="status" value="completed" disabled={!session}>Mark achieved</button>}
-          {goal.status !== "abandoned" && <button className="link-btn" name="status" value="abandoned" disabled={!session}>Abandon</button>}
-        </form>
+        <GoalStatusForms goalId={goal.id} status={goal.status} action={setGoalStatusAction} disabled={!session} />
       }
     >
       <section className="panel detail-hero">
@@ -60,7 +55,7 @@ export default async function GoalPage({ params }: { params: Promise<{ id: strin
         </div>
         <ProgressBar progress={p} />
         <div className="row-meta mono">
-          {goal.status.toUpperCase()} · P{goal.priority}
+          P{goal.priority}
           {p.daysRemaining != null ? ` · ${p.daysRemaining} days left` : " · no deadline"}
           {goal.metric_type === "count" ? ` · log with "3 ${goal.unit ?? "units"}" in the Ask bar` : ""}
         </div>
