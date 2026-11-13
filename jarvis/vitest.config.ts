@@ -2,6 +2,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // Components use the automatic JSX runtime, as Next compiles them. tsconfig
+  // says "preserve" (Next's own setting), which esbuild would read as classic.
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL(".", import.meta.url)),

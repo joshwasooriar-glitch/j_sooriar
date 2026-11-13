@@ -28,7 +28,7 @@ export async function createGoalAction(_: FormState, fd: FormData): Promise<Form
   const session = await requireSession();
   if (!session) return DEMO_STATE;
   const parsed = await parseGoal(fd);
-  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  if (!parsed.success) return { errors: fieldErrors(parsed.error), values: formFields(fd, GOAL_FIELDS) };
 
   const g = parsed.data;
   const domainId = g.new_domain ? await ensureDomain(session.db, session.userId, g.new_domain) : g.domain_id;
@@ -42,7 +42,7 @@ export async function updateGoalAction(goalId: string, _: FormState, fd: FormDat
   if (!session) return DEMO_STATE;
   if (!Id.safeParse(goalId).success) return { message: "Unknown goal." };
   const parsed = await parseGoal(fd);
-  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  if (!parsed.success) return { errors: fieldErrors(parsed.error), values: formFields(fd, GOAL_FIELDS) };
 
   const g = parsed.data;
   const domainId = g.new_domain ? await ensureDomain(session.db, session.userId, g.new_domain) : g.domain_id;
