@@ -402,7 +402,7 @@ async function main() {
 
   // ---------- memories ----------
   const { error: memErr } = await db.from("memories").insert(
-    withDefaults("memories", { entity_name: null }, [
+    withDefaults("memories", { entity_name: null, source_type: "stated", confidence: null }, [
       { kind: "profile", content: "Senior at Rutgers University New Brunswick, B.S. Information Technology and Data Science, graduating December 2026.", importance: 5 },
       { kind: "profile", content: "Runs Swish Labs. ORACLE is the flagship build.", importance: 4 },
       { kind: "preference", content: "Prefers plain conversational prose. No em dashes or en dashes. Clean scannable formatting with key results visually distinct.", importance: 5 },
