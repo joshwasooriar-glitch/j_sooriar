@@ -33,12 +33,25 @@ async function main() {
   }
   console.log(`\n  ${total} seed rows removed.`);
 
-  const { data: leftover } = await db
-    .from("activity_events")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("source", "seed");
-  console.log(leftover === null ? "  Ledger clean.\n" : "\n");
+  // Verify, table by table, using the row count (data is always null for a
+  // head-only count query, which is why the old check always said clean).
+  const tables = ["activity_events", "tasks", "projects", "habits", "memories", "goals"] as const;
+  let left = 0;
+  for (const t of tables) {
+    const { count, error: cErr } = await db
+      .from(t)
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("source", "seed");
+    if (cErr) throw cErr;
+    if (count) console.log(`  still present: ${count} seed rows in ${t}`);
+    left += count ?? 0;
+  }
+  if (left > 0) {
+    console.error(`\n  Purge incomplete: ${left} seed rows remain.`);
+    process.exit(1);
+  }
+  console.log("  Verified: 0 seed rows remain.\n");
 }
 
 main().catch((e) => {

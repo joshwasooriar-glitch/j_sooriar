@@ -17,7 +17,8 @@
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "seed:purge": "tsx --env-file=.env.local scripts/purge-seed.ts",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "test:sql": "bash scripts/test-sql.sh"
+    "test:sql": "bash scripts/test-sql.sh",
+    "test:purge": "bash scripts/test-purge.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
