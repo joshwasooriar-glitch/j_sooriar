@@ -180,6 +180,29 @@ Boundary cases are tested explicitly: zero elapsed time, target date in the
 past, target value of zero, null target date, negative quantities, goals created
 today, and the DST transition.
 
+## Health check
+
+`GET /api/health` needs no sign-in and returns JSON:
+
+| Field | Meaning |
+|---|---|
+| `supabase.configured` | Both public Supabase variables are set |
+| `supabase.reachable` | The database answered (null in demo mode) |
+| `data` | `live` (Supabase) or `demo` (built-in fixture) |
+| `ai.enabled` | `JARVIS_AI_ENABLED` is exactly `true` |
+| `migrations.applied` | Versions the database has applied |
+| `migrations.pending` | Versions shipped in `supabase/migrations` but not applied |
+
+It answers **200** when healthy and **503** when Supabase is configured but
+unreachable, the database is missing `applied_migrations()`, or a migration is
+pending. It never includes a URL, a key or a raw error message.
+
+```
+curl -s https://<your-app>/api/health
+```
+
+A pending migration means run `npx supabase db push`.
+
 ## Troubleshooting
 
 - **Switched git branches while `npm run dev` was running, and now pages crash
