@@ -246,6 +246,10 @@ create table memories (
   sensitive boolean not null default false,
   embedding vector(1536),          -- only populated when kind is episodic/project
   supersedes uuid references memories(id),
+  source text not null default 'user', -- for external: where it was read (gmail:18f2a, a URL)
+  source_type text not null
+    check (source_type in ('stated','observed','derived','external')),
+  confidence numeric check (confidence between 0 and 1),
   created_at timestamptz not null default now(),
   last_used_at timestamptz
 );
@@ -254,6 +258,9 @@ create index on memories using ivfflat (embedding vector_cosine_ops);
 -- retrieved by SQL on kind, never by vector search. Embeddings are generated
 -- only for the two kinds that need semantic recall, which keeps embedding
 -- cost near zero.
+-- Provenance: an external memory is never used in a recommendation without
+-- its source alongside. The context builder wraps it in untrusted_content
+-- with the source on the same line, and withholds one that has no source.
 
 -- ============ DURABLE JOBS ============
 create table jobs (
