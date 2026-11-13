@@ -117,6 +117,17 @@ select pg_temp.expect_error('an ordinary DELETE from the ledger is still rejecte
 
 select pg_temp.as_admin();
 
+-- memories.source_type (migration 20261113000000) is required with no default.
+-- Give it one inside this rolled-back transaction, so the fixture below works
+-- whether or not that migration is applied yet.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'memories' and column_name = 'source_type') then
+    execute 'alter table public.memories alter column source_type set default ''stated''';
+  end if;
+end $$;
+
 -- The production failure: a REAL event pointing at a SEED task.
 insert into public.goals (id, user_id, title, start_date, source)
 values ('00000000-0000-0000-0000-00000000f001', 'ffffffff-0000-0000-0000-000000000006', 'Seed goal', current_date, 'seed');
