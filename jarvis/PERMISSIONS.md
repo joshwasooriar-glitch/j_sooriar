@@ -21,6 +21,22 @@ Levels 3 and 4 require an explicit UI confirmation from Joshwa. A model deciding
 that confirmation was implied is a bug. A confirmation for one action never
 carries to the next one.
 
+### How code enforces this
+
+- `lib/permissions/levels.ts` maps every action name to its level. The gate
+  reads the level from there, never from the caller, and an unlisted action is
+  level 4.
+- `lib/permissions/gate.ts` `runAction` runs level 0 and 1, runs and audits
+  level 2, and runs level 3 and 4 only with a confirmation for that exact action
+  and target. Without one, nothing runs and an `audit_log` row with
+  `result = 'denied'` is written first.
+- `lib/permissions/confirm.ts` is the only source of a confirmation:
+  `confirmationFromForm` reads a submitted confirm form (`confirmed=yes`,
+  `confirm_action`, `confirm_target`). A look-alike object, such as a model's
+  `{ confirmed: true }`, is refused. Each confirmation works once.
+- Tests: `tests/permission-gate.test.ts`, and `npm run test:permissions`
+  against the real database.
+
 ---
 
 ## Hard stops
